@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+.vscode/
+.idea/
+
+# This skill's own local config (see config/.gitignore for the specific-file version
+# of this rule -- kept there too since it's the more precise, load-bearing one)
+config.local.json
+
+# Personal Claude Code settings for working on this repo -- e.g. permissions.
+# blockReadsOutsideWorkingDirectories scoped to this project rather than set
+# globally. Never shipped to other users who install this plugin.
+.claude/settings.local.json
+
+# This machine's own real staging working directory -- rip logs, in-progress
+# evidence, process-list JSON, real disc content. Never meant to be tracked; every
+# install gets its own, created at runtime under whatever staging.path resolves to.
+/staging/

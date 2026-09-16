@@ -1,0 +1,42 @@
+{
+  "$schema_note": "Copy this file to config.local.json and fill in real values, or let the skill do it for you conversationally on first run. See references/config-schema.md for a full description of every field. config.local.json is gitignored -- never commit it.",
+
+  "jellyfin": {
+    "base_url": "http://REPLACE_ME:8096",
+    "api_key": "REPLACE_ME"
+  },
+
+  "library": {
+    "movies_path": "REPLACE_ME e.g. D:\\Media\\movies",
+    "shows_path": "REPLACE_ME e.g. D:\\Media\\shows",
+    "naming": {
+      "movie_template": "{title} ({year}).mkv",
+      "show_template": "{show} - S{season:02d}E{episode:02d} - {episode_title}.mkv"
+    }
+  },
+
+  "staging": {
+    "path": "./_autorip_staging"
+  },
+
+  "bonus_content": {
+    "handling": "ask",
+    "remember_choice": false
+  },
+
+  "makemkv": {
+    "path": null
+  },
+
+  "tesseract": {
+    "path": null
+  },
+
+  "setup": {
+    "declined_optional_installs": []
+  },
+
+  "parallel": {
+    "max_drives": null
+  }
+}
