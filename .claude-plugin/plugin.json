@@ -1,0 +1,10 @@
+{
+  "name": "dvd-autorip",
+  "version": "0.1.0",
+  "description": "Rips a DVD via MakeMKV, independently identifies its real content (not Jellyfin's fuzzy matcher), places the files, and corrects Jellyfin's metadata via direct API writes. Windows-first, with a Linux/Mac adapter.",
+  "author": {
+    "name": "threadgill-dev"
+  },
+  "license": "MIT",
+  "keywords": ["dvd", "makemkv", "jellyfin", "media-server", "ripping"]
+}

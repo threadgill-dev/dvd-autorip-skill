@@ -1,0 +1,13 @@
+{
+  "name": "dvd-autorip-skill",
+  "description": "A Claude Code plugin that rips DVDs via MakeMKV, independently identifies their real content, places files into a Jellyfin library, and corrects Jellyfin metadata via direct API writes.",
+  "owner": {
+    "name": "threadgill-dev"
+  },
+  "plugins": [
+    {
+      "name": "dvd-autorip",
+      "source": "."
+    }
+  ]
+}
