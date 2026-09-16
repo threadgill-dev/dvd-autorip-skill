@@ -56,11 +56,31 @@ up by hand from `config/config.example.json`.
 
 ## Installing
 
-This repo is a Claude Code plugin (`.claude-plugin/plugin.json` at the root). See
-[Claude Code's plugin docs](https://code.claude.com/docs/en/plugins.md) for the current
-install flow (marketplace add + `/plugin install`, or a direct git-URL install; a
-local checkout can also be loaded for one session at a time with `claude --plugin-dir
-<path>`, no install step needed).
+This repo is a Claude Code plugin (`.claude-plugin/plugin.json` at the root).
+
+**Persistent install (recommended)** — available in every session on your machine
+afterward, no flag needed each time:
+
+```
+claude plugin marketplace add threadgill-dev/dvd-autorip-skill
+claude plugin install dvd-autorip@dvd-autorip-skill
+```
+
+Add `-s project` instead of the default user scope if you only want it available in
+one project. If you cloned this repo locally instead of installing straight from
+GitHub, point `marketplace add` at your local checkout path (`./path/to/repo`) instead
+of `owner/repo` — a checkout on a network-mapped drive additionally needs declaring
+under `extraKnownMarketplaces` in your user `settings.json` first (`claude plugin
+marketplace add` reports the exact error and where to add it if this applies to you).
+
+**One-off, session-only** — no install step, doesn't persist to future sessions:
+
+```
+claude --plugin-dir <path-to-this-repo>
+```
+
+See [Claude Code's plugin docs](https://code.claude.com/docs/en/plugins.md) for the
+full plugin/marketplace reference.
 
 **Launch in `dontAsk` permission mode, not `auto`** — `claude ... --permission-mode
 dontAsk`. Auto mode silently drops this skill's `allowed-tools` rules and routes
