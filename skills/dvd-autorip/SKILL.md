@@ -7,6 +7,12 @@ shell: powershell
 
 # DVD auto-rip pipeline
 
+**Recommended model: Sonnet 5 or later, effort `high`** (`/model`, `/effort`, or
+`modelSettings` in `settings.json`) — this is what this skill has actually been built
+and hardened on, not a guessed minimum. Matters specifically for Stage 7 below, which
+is real judgment, not a lookup; the mechanized stages (rip, eject, dependency/config
+checks) don't need it.
+
 **This is deliberately not a hands-off script for Stages 6-9.** The disc-to-disc
 variance in real DVD authoring (bonus content, concatenated episodes, decoy metadata
 candidates, franchise title collisions, physically damaged discs) keeps producing
