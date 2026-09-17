@@ -168,9 +168,14 @@ command set, and nothing else — no classifier, nothing to trip.
 
 ## Stage 1 — Setup (first run on a machine, and a quick check every run)
 
-1. **Check the running session's model and effort against what this skill was built
-   and hardened on (Sonnet 5+, effort `high` — see the intro above for why), and ask
-   about upgrading if either falls short.**
+1. **Once per machine/config, not every run: check the running session's model and
+   effort against what this skill was built and hardened on (Sonnet 5+, effort
+   `high` — see the intro above for why), and ask about upgrading if either falls
+   short.** Skip this entire step if `config.local.json`'s `setup.model_effort_ack`
+   is already `true` — asking about this on every single run (rather than once,
+   ever) would be genuinely annoying for a user who's deliberately running on a
+   lower tier, same reasoning as `setup.declined_optional_installs` for optional
+   tools. If it's `true`, go straight to step 2.
    - **Model**: you already know this from your own system prompt (the "You are
      powered by..." line present in every session) — no tool call needed, don't
      guess or re-derive it another way.
@@ -196,7 +201,15 @@ command set, and nothing else — no classifier, nothing to trip.
      this stage once they're done — the change applies immediately to the running
      session, no restart needed (unlike the settings-file changes elsewhere in this
      stage).
-   - **Do not offer to persist a default into a settings file for this one.** Unlike
+   - **Once this has been shown to the user — whether they upgraded or explicitly
+     stuck with what they have — write `setup.model_effort_ack: true` into
+     `config.local.json` so this step is skipped on every future run.** This is a
+     `config.local.json` field (this skill's own config), not a Claude Code
+     setting — it doesn't change anything about the session, it just remembers that
+     the question was asked. If the user later wants to be asked again (e.g. after
+     upgrading their plan), they can set it back to `false` by hand.
+   - **Do not offer to persist a default *model/effort choice* into a Claude Code
+     settings file.** Unlike
      `blockReadsOutsideWorkingDirectories` and `config.local.json`, model/effort is a
      Claude-Code-wide session preference, not something meaningfully scoped to this
      plugin's own directory tree — a project-scoped write here would only actually
