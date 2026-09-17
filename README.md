@@ -74,7 +74,10 @@ development and hardening has all been done on Sonnet 5 at `effortLevel: high`
 are plain scripts and don't need a strong model at all; it's specifically the
 identification stage this recommendation is for. Not evaluated against a
 lower-effort setting or a smaller model — this is what it's actually been built and
-run on, not a guess at a minimum.
+run on, not a guess at a minimum. The skill itself checks this live at the start of
+every run (Stage 1 in `skills/dvd-autorip/SKILL.md`) and asks about upgrading if the
+running session falls short — this section is just context for that, not the
+mechanism itself.
 
 ## Status
 

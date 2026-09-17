@@ -7,11 +7,12 @@ shell: powershell
 
 # DVD auto-rip pipeline
 
-**Recommended model: Sonnet 5 or later, effort `high`** (`/model`, `/effort`, or
-`modelSettings` in `settings.json`) — this is what this skill has actually been built
-and hardened on, not a guessed minimum. Matters specifically for Stage 7 below, which
-is real judgment, not a lookup; the mechanized stages (rip, eject, dependency/config
-checks) don't need it.
+**Recommended model: Sonnet 5 or later, effort `high`** — this is what this skill has
+actually been built and hardened on, not a guessed minimum. Matters specifically for
+Stage 7 below, which is real judgment, not a lookup; the mechanized stages (rip,
+eject, dependency/config checks) don't need it. Stage 1's first step checks the
+running session against this and asks about upgrading if it falls short — this intro
+note is just the rationale, that step is the actual mechanism.
 
 **This is deliberately not a hands-off script for Stages 6-9.** The disc-to-disc
 variance in real DVD authoring (bonus content, concatenated episodes, decoy metadata
@@ -136,7 +137,7 @@ leading `/` is exactly the pattern Git Bash's MSYS layer auto-converts into a Wi
 path before Python ever sees it, which is what makes the `MSYS_NO_PATHCONV=1`
 workaround seem necessary in the first place. **Don't reach for that workaround if
 the mangling happens anyway** — if directory-scoping protection
-(`permissions.blockReadsOutsideWorkingDirectories`, see Stage 1 step 4) is enabled, an
+(`permissions.blockReadsOutsideWorkingDirectories`, see Stage 1 step 5) is enabled, an
 env-var-prefixed command can never be verified against it and gets denied
 unconditionally, on any tool, in any permission mode — one of the few checks nothing
 can bypass (confirmed directly; see `references/gotchas.md`'s "`MSYS_NO_PATHCONV=1`
@@ -167,7 +168,46 @@ command set, and nothing else — no classifier, nothing to trip.
 
 ## Stage 1 — Setup (first run on a machine, and a quick check every run)
 
-1. Check whether `config/config.local.json` exists **at the plugin root — the
+1. **Check the running session's model and effort against what this skill was built
+   and hardened on (Sonnet 5+, effort `high` — see the intro above for why), and ask
+   about upgrading if either falls short.**
+   - **Model**: you already know this from your own system prompt (the "You are
+     powered by..." line present in every session) — no tool call needed, don't
+     guess or re-derive it another way.
+   - **Effort**: not exposed in the system prompt the way the model name is. Check
+     the `CLAUDE_EFFORT` environment variable instead — **via the Bash tool
+     specifically, not PowerShell**: `python -c "import os;
+     print(os.environ.get('CLAUDE_EFFORT', 'unknown'))"`. Confirmed empirically that
+     this variable is set in the Bash tool's shell but **absent from the PowerShell
+     tool's shell** on Windows, even within the same session — using PowerShell for
+     this check will silently report nothing useful, not an error. This is also an
+     undocumented, unofficial signal (unlike the `settings.json` fields it
+     presumably mirrors) — treat `"unknown"` as "can't tell," never as "low," and
+     say so plainly rather than guessing at a number.
+   - **If either is below the recommendation**, say so plainly, give the one-line
+     tradeoff (a stronger model/higher effort costs more tokens per turn, but Stage
+     7's identification is real judgment against ambiguous evidence, not a lookup —
+     getting it wrong has real consequences, see `identification-technique.md`'s
+     duplicate-encode incident), and ask if they want to switch.
+   - **You cannot change either yourself — no tool available to this skill, or any
+     skill, can invoke `/model`/`/effort` or otherwise change the current session's
+     model/effort.** This is strictly a human-typed slash command. If they want to
+     switch, tell them to run `/model` and/or `/effort` themselves, then continue
+     this stage once they're done — the change applies immediately to the running
+     session, no restart needed (unlike the settings-file changes elsewhere in this
+     stage).
+   - **Do not offer to persist a default into a settings file for this one.** Unlike
+     `blockReadsOutsideWorkingDirectories` and `config.local.json`, model/effort is a
+     Claude-Code-wide session preference, not something meaningfully scoped to this
+     plugin's own directory tree — a project-scoped write here would only actually
+     take effect for a session launched from this exact directory (see step 5's own
+     "checked only at the session's launch directory" behavior), which most real
+     installs of this plugin never are, and writing it globally repeats the exact
+     mistake `references/gotchas.md`'s directory-scoping incident already taught
+     this project not to make. A persistent default across sessions is the user's
+     own `~/.claude/settings.json` or `/config` to manage, not something this skill
+     writes on their behalf.
+2. Check whether `config/config.local.json` exists **at the plugin root — the
    `config/` directory that's a sibling of `skills/`, NOT
    `${CLAUDE_SKILL_DIR}/config/`.** (`${CLAUDE_SKILL_DIR}` resolves to
    `skills/dvd-autorip/`; a config file written there instead of the plugin root is a
@@ -202,7 +242,7 @@ command set, and nothing else — no classifier, nothing to trip.
    Write/update `config/config.local.json` (plugin root, not `${CLAUDE_SKILL_DIR}`)
    yourself once you have real values. Never commit this file, never echo the API key
    back in full once it's set.
-2. Run `python ${CLAUDE_SKILL_DIR}/scripts/check_dependencies.py --json` **in the
+3. Run `python ${CLAUDE_SKILL_DIR}/scripts/check_dependencies.py --json` **in the
    foreground, not backgrounded — it has its own hard internal ceiling (90s total,
    10s per external tool it shells out to) and normally finishes in well under a
    second, so there's no legitimate reason to background it and wait.** A real run
@@ -246,7 +286,7 @@ command set, and nothing else — no classifier, nothing to trip.
      genuinely-installed-but-off-PATH Tesseract used to get reported as fully missing
      and offered for (re-)install — `found_via_fallback` closes that gap; if it's
      `true`, don't offer to install it, it's already there.
-3. **Skip this step entirely when `media_server.type` is `"none"`** — there's no
+4. **Skip this step entirely when `media_server.type` is `"none"`** — there's no
    server to reach, and none of Stages 8/9/12's Jellyfin-touching sub-steps run
    either (each says so at the point it applies). Otherwise, validate Jellyfin is
    actually reachable with the configured URL/key:
@@ -265,7 +305,7 @@ command set, and nothing else — no classifier, nothing to trip.
    re-enter the value rather than failing silently mid-pipeline later — don't assume
    the key itself is bad without checking (regenerating it fixed nothing in the real
    incident; switching header form did).
-4. **Offer directory-scoping protection**, a real Claude Code feature
+5. **Offer directory-scoping protection**, a real Claude Code feature
    (`permissions.blockReadsOutsideWorkingDirectories`) this skill can turn on for
    itself rather than requiring the user to discover and configure it by hand. Run
    `python ${CLAUDE_SKILL_DIR}/scripts/setup/check_directory_scoping.py check
