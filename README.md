@@ -157,6 +157,13 @@ pipeline, and `skills/dvd-autorip/references/` (start at its own
 [README](skills/dvd-autorip/references/README.md)) for the identification technique,
 parallel-ripping design, and gotcha catalog behind it.
 
+## Known gaps and ideas
+
+See [POTENTIAL_ENHANCEMENTS.md](POTENTIAL_ENHANCEMENTS.md) for honest, unimplemented
+gaps and proposed directions — not a roadmap with commitments, just a log. Bug
+reports and feature requests: [Issues](https://github.com/threadgill-dev/dvd-autorip-skill/issues);
+general questions: [Discussions](https://github.com/threadgill-dev/dvd-autorip-skill/discussions).
+
 ## License
 
 MIT — see `LICENSE`.
