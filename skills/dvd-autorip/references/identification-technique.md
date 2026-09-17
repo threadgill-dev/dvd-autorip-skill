@@ -218,10 +218,10 @@ remain wrong regardless:
   ```
 - ❌ **Delegating any of this to a subagent** — prohibited outright, see SKILL.md's
   intro section. A real, properly-guardrailed subagent-per-title design remains a
-  plausible *future* direction (see PLAN.md's `Potential_Enhancements`) — this whole
-  adaptive, per-title procedure is deliberately written clearly enough to double as
-  the basis for what that design would eventually need to do independently per
-  agent — but nothing here authorizes building or using it now.
+  plausible *future* direction — this whole adaptive, per-title procedure is
+  deliberately written clearly enough to double as the basis for what that design
+  would eventually need to do independently per agent — but nothing here authorizes
+  building or using it now.
 
 Work through each title's actual identification decision as soon as its evidence is
 in hand, one title at a time, in order — this naturally preserves the "verify every
