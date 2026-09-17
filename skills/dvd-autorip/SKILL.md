@@ -34,9 +34,9 @@ the Jellyfin API — not a spec for code to replace that.
 
 **Never spawn a subagent (fork/Task/Agent, any of them) anywhere in this skill's
 execution — for evidence-gathering, identification, placement, verification, or
-anything else.** This was explicitly considered as a design option early on (see
-PLAN.md's `Potential_Enhancements`) and rejected in favor of direct parallel tool
-calls (see Stage 7 and `identification-technique.md`). A real run did it anyway,
+anything else.** This was explicitly considered as a design option early on and
+rejected in favor of direct parallel tool calls (see Stage 7 and
+`identification-technique.md`). A real run did it anyway,
 unprompted, and it produced exactly the failure mode that rejection anticipated: the
 delegated work quietly exceeded its actual assignment (did placement, Jellyfin
 writes, permanent bonus-content deletion, and ejected drives without checking back),
@@ -68,13 +68,6 @@ all of it in context up front:
 - `references/dependency-install.md` — Stage 1's missing-tool flow: when to offer
   installing something, when to hard stop, when to remember a decline so future runs
   stop asking
-
-**Stage numbering note**: stages here are numbered sequentially (1-13). If you're
-cross-referencing against `M:\.claude\projects\dvd-autorip-pipeline\PLAN.md` (the
-private working document this skill was extracted from, which uses an older `0`/`0.4`/
-`1.5`/`5.5`-style decimal numbering left over from its own edit history), see that
-doc's "Stage numbering: PLAN.md vs. the published skill" section for the mapping
-between the two.
 
 ## Running the bundled scripts
 
