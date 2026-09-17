@@ -11,24 +11,44 @@ and well-formed — it never prompts and never contains real values.
 
 ## Fields
 
-### `jellyfin.base_url` (string, required)
-The Jellyfin server's URL as reachable from the machine running this skill, e.g.
-`http://192.168.1.50:8096` or `http://localhost:8096`. No trailing slash.
+### `media_server.type` (string, optional, default `"jellyfin"`)
+One of `"jellyfin"` or `"none"`. Missing this field entirely is the same as
+`"jellyfin"` — existing `config.local.json` files written before this field existed
+keep working with no change. `"none"` is for ripping into correctly-named,
+correctly-organized files with **no** media server at all — no reachability check, no
+`Library/Refresh`, no metadata auto-correct, no post-write verification against a
+server. This is also the right choice for a **Plex** library: nothing in this skill
+talks to Plex's API specifically (untested, unlike the Windows rip pipeline — see
+`gotchas.md`), but `"none"` mode's output is exactly what Plex's own scanner picks up
+on its own, and Plex's built-in matching is generally trusted more than Jellyfin's
+fuzzy matcher anyway (the reason this skill's independent-identification step exists
+in the first place). See `identification-technique.md`'s "Identifying without a media
+server" for how Stage 7 adapts, and `SKILL.md`'s Stage 9/12 for what gets skipped.
 
-### `jellyfin.api_key` (string, required)
+### `jellyfin.base_url` (string, required when `media_server.type` is `"jellyfin"`)
+The Jellyfin server's URL as reachable from the machine running this skill, e.g.
+`http://192.168.1.50:8096` or `http://localhost:8096`. No trailing slash. Not read at
+all when `media_server.type` is `"none"`.
+
+### `jellyfin.api_key` (string, required when `media_server.type` is `"jellyfin"`)
 A Jellyfin API key with permission to create/update library items. Generate one via
 Jellyfin's own web UI: **Dashboard → Advanced → API Keys → +** (any name works — Jellyfin
 doesn't scope keys by permission, any valid key can read/write the library). Treat this
 like a password: it is written only to `config.local.json`, never to anything committed,
-never echoed back in full in conversation once set.
+never echoed back in full in conversation once set. Not read at all when
+`media_server.type` is `"none"`.
 
 ### `library.movies_path` (string, required)
-Absolute path to the Jellyfin "Movies" library folder as seen by the machine running
-this skill (e.g. `D:\Media\movies` or `/mnt/media/movies`). Flat, no subfolders assumed.
+Absolute path to the movies library folder as seen by the machine running this skill
+(e.g. `D:\Media\movies` or `/mnt/media/movies`). Flat, no subfolders assumed. Required
+regardless of `media_server.type` — this is where files land either way; naming them
+correctly and organizing them into the right folders is this field's job, with or
+without Jellyfin/Plex/anything else pointed at it afterward.
 
 ### `library.shows_path` (string, required)
-Absolute path to the Jellyfin "Shows" library folder, expected to contain one
-subdirectory per show, each with `Season {N}` subdirectories inside.
+Absolute path to the shows library folder, expected to contain one subdirectory per
+show, each with `Season {N}` subdirectories inside. Same as `movies_path` above:
+required regardless of `media_server.type`.
 
 ### `library.naming.movie_template` / `library.naming.show_template` (string, optional)
 Filename templates. Defaults match Jellyfin's own recommended naming
@@ -101,7 +121,10 @@ why more drives isn't always better on memory-constrained machines.
 ## Validating
 
 `scripts/setup/validate_config.py <path-to-config.local.json>` checks the file exists,
-parses as JSON, and has every required field non-empty. It does not check that the
-Jellyfin URL/key actually work — that's a live reachability check
-(`GET /System/Info`) Claude performs directly as part of Stage 1, since it needs a real
-network call, not just schema validation.
+parses as JSON, and has every required field non-empty — `jellyfin.base_url`/
+`jellyfin.api_key` are only required when `media_server.type` is `"jellyfin"` (or the
+field is missing, which defaults to `"jellyfin"`); under `"none"` those two fields
+aren't checked at all, even if present. It does not check that the Jellyfin URL/key
+actually work — that's a live reachability check (`GET /System/Info`) Claude performs
+directly as part of Stage 1, since it needs a real network call, not just schema
+validation, and it's skipped entirely under `"none"`.

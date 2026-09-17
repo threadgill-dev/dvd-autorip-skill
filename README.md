@@ -7,6 +7,16 @@ API writes — because Jellyfin's own fuzzy title/year search produces confident
 matches often enough (misidentified movies, wrong TMDB collections pulled in by a
 same-titled unrelated franchise) that it should never be the thing that decides.
 
+Jellyfin is optional (`media_server.type: "none"` in config) — without it, the skill
+still rips, identifies, and places correctly-named files into your library folders,
+just without the Jellyfin-specific steps (auto-correct, refresh, post-write
+verification). This is also the right mode for a **Plex** library: nothing here
+talks to Plex's API specifically (that would be unvalidated, unlike the Windows rip
+pipeline — see `skills/dvd-autorip/references/gotchas.md`), but Plex's own scanner picks up
+correctly-named, correctly-organized files on its own, and its built-in matching is
+generally trusted more than Jellyfin's fuzzy matcher anyway — arguably making it a
+better fit for `"none"` mode than Jellyfin users are.
+
 Built from ~200 real disc-ripping sessions' worth of accumulated technique — not a
 theoretical design. See `skills/dvd-autorip/references/` for the full identification
 method, the parallel-ripping design, and a catalog of gotchas discovered the hard way.
@@ -39,20 +49,22 @@ At minimum: Windows, Linux, or Mac; [MakeMKV](https://www.makemkv.com/) (the
 `makemkvcon` CLI ships with it); [ffmpeg/ffprobe](https://ffmpeg.org/); PowerShell
 (Windows) or bash 4+ (Linux/Mac); Python 3.8+; the `eject` CLI tool on Linux
 specifically (Mac uses the always-present `drutil`/`diskutil` instead, Windows needs
-nothing extra); and a running Jellyfin server.
+nothing extra); and, unless you're running in `media_server.type: "none"` mode (see
+Setup below), a running Jellyfin server.
 [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) is optional — without
 it, discs with only image-based subtitles fall back to frame-based visual
 identification instead of OCR'd dialogue text.
 
 ## Setup
 
-No config ships with real values — the skill asks you for what it needs (Jellyfin URL
-and API key, your library folder paths, and what to do with bonus/extra content like
-deleted scenes and featurettes — keep as Jellyfin Special Features, discard, or ask
-each run) the first time you run it, and writes them to a gitignored
-`config/config.local.json`. See
-`skills/dvd-autorip/references/config-schema.md` for every field if you'd rather set it
-up by hand from `config/config.example.json`.
+No config ships with real values — the skill asks you for what it needs the first
+time you run it, and writes it to a gitignored `config/config.local.json`. First
+question is whether you have a Jellyfin server at all (`media_server.type`) — say
+"none" if you don't, or if you're on Plex — then, only if you said Jellyfin: URL and
+API key. Either way it also asks for your library folder paths, and what to do with
+bonus/extra content like deleted scenes and featurettes (keep as Special Features,
+discard, or ask each run). See `skills/dvd-autorip/references/config-schema.md` for
+every field if you'd rather set it up by hand from `config/config.example.json`.
 
 ## Installing
 

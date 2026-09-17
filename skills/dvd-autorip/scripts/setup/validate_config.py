@@ -15,12 +15,20 @@ Exit code 0 + prints "OK" if valid. Exit code 1 + prints one line per problem if
 import json
 import sys
 
-REQUIRED_FIELDS = [
-    ("jellyfin", "base_url"),
-    ("jellyfin", "api_key"),
+ALWAYS_REQUIRED_FIELDS = [
     ("library", "movies_path"),
     ("library", "shows_path"),
 ]
+
+# Only required when media_server.type is "jellyfin" (the default when the field is
+# missing entirely -- see config-schema.md). Under "none" these are never checked,
+# even if present with placeholder values left over from an earlier jellyfin setup.
+JELLYFIN_ONLY_REQUIRED_FIELDS = [
+    ("jellyfin", "base_url"),
+    ("jellyfin", "api_key"),
+]
+
+MEDIA_SERVER_TYPE_VALUES = {"jellyfin", "none"}
 
 PLACEHOLDER_MARKER = "REPLACE_ME"
 
@@ -29,7 +37,25 @@ BONUS_CONTENT_HANDLING_VALUES = {"discard", "keep", "ask"}
 
 def validate(config: dict) -> list[str]:
     problems = []
-    for section, field in REQUIRED_FIELDS:
+
+    media_server = config.get("media_server")
+    media_server_type = "jellyfin"
+    if media_server is not None:
+        if not isinstance(media_server, dict):
+            problems.append(f"'media_server' should be an object, got {type(media_server).__name__}")
+        else:
+            media_server_type = media_server.get("type", "jellyfin")
+            if media_server_type not in MEDIA_SERVER_TYPE_VALUES:
+                problems.append(
+                    f"'media_server.type' is '{media_server_type}', must be one of: "
+                    f"{', '.join(sorted(MEDIA_SERVER_TYPE_VALUES))}"
+                )
+
+    required_fields = list(ALWAYS_REQUIRED_FIELDS)
+    if media_server_type == "jellyfin":
+        required_fields += JELLYFIN_ONLY_REQUIRED_FIELDS
+
+    for section, field in required_fields:
         value = config.get(section, {})
         if not isinstance(value, dict):
             problems.append(f"'{section}' should be an object, got {type(value).__name__}")

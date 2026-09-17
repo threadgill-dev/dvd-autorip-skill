@@ -1,6 +1,6 @@
 ---
 name: dvd-autorip
-description: Rip a DVD via MakeMKV, independently identify its real content (never relying on Jellyfin's own fuzzy title/year matcher, which produces confidently wrong matches often enough to be untrustworthy alone), place the file(s) into the Jellyfin library, and correct Jellyfin's metadata via direct API writes. Use when the user says things like "rip this DVD", "add this disc to Jellyfin", "run the autorip pipeline", or loads a disc and asks what to do with it. Windows-first; see references/config-schema.md and scripts/check_dependencies.py before the first run on a new machine.
+description: Rip a DVD via MakeMKV, independently identify its real content (never relying on Jellyfin's own fuzzy title/year matcher, which produces confidently wrong matches often enough to be untrustworthy alone), place the file(s) correctly named into a media library, and — when a Jellyfin server is configured — correct Jellyfin's metadata via direct API writes. Jellyfin is optional (media_server.type: "none" in config); works equally well feeding a Plex library or a plain folder structure with no media server at all. Use when the user says things like "rip this DVD", "add this disc to Jellyfin", "run the autorip pipeline", or loads a disc and asks what to do with it. Windows-first; see references/config-schema.md and scripts/check_dependencies.py before the first run on a new machine.
 allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/**), Bash(powershell *), Bash(pwsh *), Bash(python *), Bash(bash *), Bash(*ffmpeg*), Bash(*ffprobe*), Bash(*tesseract*), PowerShell(${CLAUDE_SKILL_DIR}/scripts/**), PowerShell(powershell *), PowerShell(pwsh *), PowerShell(python *), PowerShell(bash *), PowerShell(*ffmpeg*), PowerShell(*ffprobe*), PowerShell(*tesseract*)
 shell: powershell
 ---
@@ -171,11 +171,23 @@ command set, and nothing else — no classifier, nothing to trip.
    `python ${CLAUDE_SKILL_DIR}/scripts/setup/validate_config.py <path>`. If it's
    missing or reports problems, **ask the user conversationally** for whatever's
    missing — this is a conversation, not a scripted prompt:
+   - **Whether they have a Jellyfin server to write metadata to at all** —
+     `media_server.type`, `"jellyfin"` or `"none"`. Default to `"jellyfin"` if they
+     don't say otherwise (matches every config written before this field existed).
+     `"none"` is the right answer for someone who just wants correctly-named,
+     correctly-organized files with no media server involved at all, or who uses
+     Plex instead — see `references/config-schema.md`'s `media_server.type` entry
+     for why Plex users specifically are better served by `"none"` than by anything
+     Plex-API-specific this skill doesn't have and can't test. Only ask the next
+     bullet if the answer here is `"jellyfin"`.
    - Jellyfin base URL and an API key (Dashboard → Advanced → API Keys → +)
-   - The Movies and Shows library folder paths
+   - The Movies and Shows library folder paths — always needed, regardless of
+     `media_server.type`
    - What to do with bonus/extra content (deleted scenes, featurettes, trailers) —
-     keep it (filed into Jellyfin as Special Features), discard it (deleted from
-     staging once identified as bonus content, permanently), or be asked each run.
+     keep it (filed into the standard Special Features folder convention, read by
+     Jellyfin/Plex/etc. alike — not Jellyfin-specific, works the same regardless of
+     `media_server.type`), discard it (deleted from staging once identified as bonus
+     content, permanently), or be asked each run.
      Explain the tradeoff briefly (keep = more setup work on discs that have extras,
      discard = permanent, ask = no silent default either way) — see
      `references/bonus-content.md`. Default to `"ask"` if the user has no preference
@@ -228,7 +240,10 @@ command set, and nothing else — no classifier, nothing to trip.
      genuinely-installed-but-off-PATH Tesseract used to get reported as fully missing
      and offered for (re-)install — `found_via_fallback` closes that gap; if it's
      `true`, don't offer to install it, it's already there.
-3. Validate Jellyfin is actually reachable with the configured URL/key:
+3. **Skip this step entirely when `media_server.type` is `"none"`** — there's no
+   server to reach, and none of Stages 8/9/12's Jellyfin-touching sub-steps run
+   either (each says so at the point it applies). Otherwise, validate Jellyfin is
+   actually reachable with the configured URL/key:
    `python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> GET System/Info`
    (no leading `/` — see "Running the bundled scripts" above for why).
    **Use this script for every Jellyfin API call in this skill, not just this one** —
@@ -522,6 +537,15 @@ embedded `CINFO`/`TINFO` disc metadata (from Stage 4/6's own disc info scan). **
 rule: a TV disc's content never spans seasons** — see the reference doc before
 concluding otherwise.
 
+**When `media_server.type` is `"none"`, skip the `RemoteSearch` call** — it exists to
+get a real TMDB id for Stage 9's Jellyfin write, which doesn't happen in this mode
+either. The identification itself doesn't need it: title/year (movies) or
+show/season/episode (TV) still has to be established with the same confidence from
+the same evidence (dialogue, subtitles, frame extraction) — a plain web search takes
+`RemoteSearch`'s place as the cross-check corroborating that evidence, same as it
+already does elsewhere in this stage. See `identification-technique.md`'s
+"Identifying without a media server" for exactly what changes and what doesn't.
+
 **For TV discs, build the Step 2b episode checklist (web search the season's
 official disc breakdown) before working through titles** — it's a cheap cross-check
 against wrong episode counts/numbers, and it's the primary defense against the
@@ -549,26 +573,37 @@ main-content encodes.
 ## Stage 8 — Place + scan
 
 High-confidence main-content items: move into `{library.movies_path}` or
-`{library.shows_path}\{Show}\Season N\` per the naming templates in config, then
-`python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> POST Library/Refresh`.
-Jellyfin will guess metadata via its own fuzzy match here — expected to sometimes be
-wrong, corrected unconditionally next.
+`{library.shows_path}\{Show}\Season N\` per the naming templates in config. **When
+`media_server.type` is `"jellyfin"`**, follow with
+`python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> POST Library/Refresh`
+— Jellyfin will guess metadata via its own fuzzy match here, expected to sometimes be
+wrong, corrected unconditionally next (Stage 9). **When `media_server.type` is
+`"none"`, this stage is just the file move** — no refresh call, nothing to correct
+afterward (Stage 9 doesn't run at all in this mode).
 
 **Bonus/extra content classified in Stage 7** gets handled per
 `config.local.json`'s `bonus_content.handling` (full mechanics in
-`references/bonus-content.md`):
+`references/bonus-content.md`) — this part is unaffected by `media_server.type`, the
+extras-folder convention `file_bonus_content.py` uses isn't Jellyfin-specific:
 - `"discard"` — delete it from staging now, permanently.
 - `"keep"` — run
   `python ${CLAUDE_SKILL_DIR}/scripts/file_bonus_content.py movie|tv ...` to file it
-  into Jellyfin's real Special Features folders now (it creates a per-movie folder
+  into the real Special Features folders now (it creates a per-movie folder
   only for movies that actually have extras to keep — TV extras use the
   already-existing Season/Series folder structure, no restructuring needed — and
   never overwrites an existing destination), then include it in this stage's
-  `Library/Refresh`.
+  `Library/Refresh` **when `media_server.type` is `"jellyfin"`** (skip that part
+  under `"none"`, same as above).
 - `"ask"` — do neither yet. Leave it in staging; Stage 10 resolves it once, before
   eject, at the end of the whole run.
 
-## Stage 9 — Auto-correct (always runs, unconditional)
+## Stage 9 — Auto-correct (always runs, unconditional, when `media_server.type` is `"jellyfin"`)
+
+**Skip this entire stage when `media_server.type` is `"none"`** — there's no
+Jellyfin item to correct, since Stage 8 never wrote one. Naming was already handled
+by the naming templates at placement time, and Stage 7's identification confidence
+is the only correctness guarantee that exists in this mode (see Stage 12 below for
+what that means for verification).
 
 **This stage's mechanism is different for movies/series than for individual
 episodes — `POST Items/RemoteSearch/Episode` does not exist in Jellyfin's API
@@ -648,12 +683,21 @@ unresolved content is sitting unaddressed without the user actively knowing abou
 
 ## Stage 12 — Verify, cleanup, and restore notifications
 
-Confirm the correct match actually landed —
-`python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> GET
+**When `media_server.type` is `"jellyfin"`**, confirm the correct match actually
+landed — `python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> GET
 Items?Ids={id}&Fields=ProviderIds,Overview` (or the per-item equivalent) and check
 the id/title match what Stage 7 identified.
 This is the real verification step referenced from Stage 9 above, not just "Stage 8's
-write returned 200." Do this for **every** disc in the batch before moving on — Stage
+write returned 200."
+
+**When `media_server.type` is `"none"`, there is no equivalent API check — say so
+plainly rather than silently skipping past it.** Stage 7's identification confidence
+is the only guarantee that exists in this mode; nothing downstream cross-checks it
+against a server the way the `jellyfin` path does. This is a genuinely weaker
+guarantee, not a cosmetic difference — don't imply this stage "verified" anything for
+a `"none"`-mode disc in the closing message.
+
+Do this for **every** disc in the batch before moving on — Stage
 10/Stage 11 (whichever applied) must also be fully resolved for all of them (see
 "Ordering" in `references/parallel-ripping.md` — treating a disc as done, including
 cleaning it up or ejecting it, before an outstanding bonus-content question or a
