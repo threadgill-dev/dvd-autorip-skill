@@ -1,13 +1,41 @@
 # Config schema
 
-`config/config.local.json` holds every machine/account-specific value this skill needs.
-It is gitignored — never commit it, never paste its contents into a public issue/PR.
-`config/config.example.json` is the committed template (placeholders only).
+`~/.claude/dvd-autorip-skill/config.local.json` holds every machine/account-specific
+value this skill needs — **a fixed path outside this plugin's own directory tree
+entirely**, not `config/config.local.json` under the plugin root. This is deliberate,
+not incidental: installing or updating this plugin from a marketplace makes a fresh
+filesystem copy of the plugin's whole directory into a new version-numbered cache
+folder every time — confirmed empirically, including for a *local directory*
+marketplace source, where it's easy to (wrongly) assume the installed copy just
+references the live directory live. A file living inside that tree gets swept up in
+every such copy: a live edit doesn't reach an already-running session until a
+version-bump-plus-`update`-plus-restart cycle, and — more seriously — a config that
+only exists because a *previous* version's install created it has no path to reach a
+*new* version's freshly-copied folder at all, since the marketplace source (GitHub,
+typically) never contains a real user's config in the first place. Keeping it
+permanently outside the versioned plugin tree avoids both failure modes.
 
-Claude creates and edits this file directly during Stage 1 of a run (see SKILL.md) —
-there is no setup wizard script that prompts interactively; the conversation itself is
-the wizard. `scripts/setup/validate_config.py` only checks that a given file is present
-and well-formed — it never prompts and never contains real values.
+`config/config.local.json` at the plugin root is still recognized, but only as a
+**one-time migration source** — if the new fixed path doesn't have a config yet and
+the old location does, Stage 1 moves it rather than asking the user to redo setup.
+Nothing writes to the old location anymore.
+
+**`~` is safe to use literally** in every command this skill runs against the config
+path — confirmed empirically to expand correctly both when Claude constructs a Bash
+command and when it constructs a PowerShell command on Windows, including passed as
+a plain argument to an external program (`python script.py ~/.claude/...`), not just
+inside PowerShell-native cmdlets. No platform-specific handling needed here, unlike
+some of this skill's other path-handling gotchas.
+
+`config/config.example.json` (inside the repo, still at the old relative path — it's
+just a template, never a real config) is the committed template (placeholders only).
+
+Claude creates and edits the real config file directly during Stage 1 of a run (see
+SKILL.md) — there is no setup wizard script that prompts interactively; the
+conversation itself is the wizard. `scripts/setup/validate_config.py` only checks
+that a given file (passed as a path argument) is present and well-formed — it never
+prompts, never contains real values, and doesn't care which of the two locations it's
+pointed at.
 
 ## Fields
 
