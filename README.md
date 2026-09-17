@@ -1,25 +1,56 @@
 # dvd-autorip
 
-A Claude Code skill/plugin that rips a DVD via [MakeMKV](https://www.makemkv.com/),
-independently identifies its real content, places the file(s) into a
-[Jellyfin](https://jellyfin.org/) library, and corrects Jellyfin's metadata via direct
-API writes — because Jellyfin's own fuzzy title/year search produces confidently wrong
-matches often enough (misidentified movies, wrong TMDB collections pulled in by a
-same-titled unrelated franchise) that it should never be the thing that decides.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-plugin-5A32FB)](https://code.claude.com/docs/en/plugins.md)
 
-Jellyfin is optional (`media_server.type: "none"` in config) — without it, the skill
-still rips, identifies, and places correctly-named files into your library folders,
-just without the Jellyfin-specific steps (auto-correct, refresh, post-write
-verification). This is also the right mode for a **Plex** library: nothing here
-talks to Plex's API specifically (that would be unvalidated, unlike the Windows rip
-pipeline — see `skills/dvd-autorip/references/gotchas.md`), but Plex's own scanner picks up
-correctly-named, correctly-organized files on its own, and its built-in matching is
-generally trusted more than Jellyfin's fuzzy matcher anyway — arguably making it a
-better fit for `"none"` mode than Jellyfin users are.
+A Claude Code skill/plugin that rips a DVD via [MakeMKV](https://www.makemkv.com/),
+**independently identifies its real content** (dialogue, subtitles, disc menus — never
+just a fuzzy title/year guess), and places correctly-named files into your media
+library. Works with [Jellyfin](https://jellyfin.org/) (writes corrected metadata
+directly via its API), [Plex](https://www.plex.tv/), or no media server at all.
 
 Built from ~200 real disc-ripping sessions' worth of accumulated technique — not a
-theoretical design. See `skills/dvd-autorip/references/` for the full identification
-method, the parallel-ripping design, and a catalog of gotchas discovered the hard way.
+theoretical design. Every gotcha in `skills/dvd-autorip/references/gotchas.md` was
+found by actually hitting it on a real disc.
+
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [What this is (and isn't)](#what-this-is-and-isnt)
+- [Status](#status)
+- [Requirements](#requirements)
+- [Installing](#installing)
+- [Setup](#setup)
+- [License](#license)
+
+## Why this exists
+
+Jellyfin's own fuzzy title/year search produces confidently wrong matches often enough
+(misidentified movies, wrong TMDB collections pulled in by a same-titled unrelated
+franchise) that it should never be the thing that decides what a ripped disc actually
+is. A couple of real examples from this skill's own use:
+
+- A season-3 disc's episodes were consistently identified one number off from what
+  Jellyfin's own metadata provider expected, because that provider's data has
+  "Episode22" at E22 instead of its usual chronological slot — invisible unless you
+  check the actual episode content against what got assumed.
+- "a well-known literary detective" alone has roughly ten separate TMDB entries for different
+  actors/eras; picking the top search hit by title match alone reliably picks the
+  wrong one.
+
+This skill treats the disc's actual audio/video/subtitle content as the source of
+truth, and only writes to a media server's metadata after that's independently
+confirmed — never before.
+
+**Jellyfin is optional** (`media_server.type: "none"` in config) — without it, the
+skill still rips, identifies, and places correctly-named files into your library
+folders, just without the Jellyfin-specific steps (auto-correct, refresh, post-write
+verification). This is also the recommended mode for a **Plex** library: nothing here
+talks to Plex's API directly (that would be unvalidated, unlike the Windows rip
+pipeline — see `skills/dvd-autorip/references/gotchas.md`), but Plex's own scanner
+picks up correctly-named, correctly-organized files on its own, and its built-in
+matching is generally trusted more than Jellyfin's fuzzy matcher anyway — arguably
+making Plex users a better fit for `"none"` mode than Jellyfin users are.
 
 ## What this is (and isn't)
 
@@ -50,21 +81,10 @@ At minimum: Windows, Linux, or Mac; [MakeMKV](https://www.makemkv.com/) (the
 (Windows) or bash 4+ (Linux/Mac); Python 3.8+; the `eject` CLI tool on Linux
 specifically (Mac uses the always-present `drutil`/`diskutil` instead, Windows needs
 nothing extra); and, unless you're running in `media_server.type: "none"` mode (see
-Setup below), a running Jellyfin server.
+[Setup](#setup) below), a running Jellyfin server.
 [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) is optional — without
 it, discs with only image-based subtitles fall back to frame-based visual
 identification instead of OCR'd dialogue text.
-
-## Setup
-
-No config ships with real values — the skill asks you for what it needs the first
-time you run it, and writes it to a gitignored `config/config.local.json`. First
-question is whether you have a Jellyfin server at all (`media_server.type`) — say
-"none" if you don't, or if you're on Plex — then, only if you said Jellyfin: URL and
-API key. Either way it also asks for your library folder paths, and what to do with
-bonus/extra content like deleted scenes and featurettes (keep as Special Features,
-discard, or ask each run). See `skills/dvd-autorip/references/config-schema.md` for
-every field if you'd rather set it up by hand from `config/config.example.json`.
 
 ## Installing
 
@@ -100,6 +120,23 @@ every Bash/PowerShell call through a general-purpose classifier that doesn't
 recognize DVD-ripping-specific commands, which can revert an entire session to full
 manual prompting. See `skills/dvd-autorip/SKILL.md`'s "Launch this skill in
 `dontAsk` permission mode" section for why.
+
+## Setup
+
+No config ships with real values — the skill asks you for what it needs the first
+time you run it, and writes it to a gitignored `config/config.local.json`. First
+question is whether you have a Jellyfin server at all (`media_server.type`) — say
+"none" if you don't, or if you're on Plex — then, only if you said Jellyfin: URL and
+API key. Either way it also asks for your library folder paths, and what to do with
+bonus/extra content like deleted scenes and featurettes (keep as Special Features,
+discard, or ask each run). See `skills/dvd-autorip/references/config-schema.md` for
+every field if you'd rather set it up by hand from `config/config.example.json`.
+
+Once configured, just say something like "rip this DVD" or "run the autorip pipeline"
+with a disc loaded — see `skills/dvd-autorip/SKILL.md` for the full stage-by-stage
+pipeline, and `skills/dvd-autorip/references/` (start at its own
+[README](skills/dvd-autorip/references/README.md)) for the identification technique,
+parallel-ripping design, and gotcha catalog behind it.
 
 ## License
 
