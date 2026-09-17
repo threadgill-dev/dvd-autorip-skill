@@ -141,10 +141,12 @@ manual prompting. See `skills/dvd-autorip/SKILL.md`'s "Launch this skill in
 ## Setup
 
 No config ships with real values — the skill asks you for what it needs the first
-time you run it, and writes it to a gitignored `config/config.local.json`. First
-question is whether you have a Jellyfin server at all (`media_server.type`) — say
-"none" if you don't, or if you're on Plex — then, only if you said Jellyfin: URL and
-API key. Either way it also asks for your library folder paths, and what to do with
+time you run it, and writes it to `~/.claude/dvd-autorip-skill/config.local.json` — a
+fixed path outside this repo entirely, deliberately, so a plugin update never goes
+stale against it or discards it (see `config-schema.md` for why). First question is
+whether you have a Jellyfin server at all (`media_server.type`) — say "none" if you
+don't, or if you're on Plex — then, only if you said Jellyfin: URL and API key.
+Either way it also asks for your library folder paths, and what to do with
 bonus/extra content like deleted scenes and featurettes (keep as Special Features,
 discard, or ask each run). See `skills/dvd-autorip/references/config-schema.md` for
 every field if you'd rather set it up by hand from `config/config.example.json`.

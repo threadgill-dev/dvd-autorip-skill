@@ -220,16 +220,37 @@ command set, and nothing else — no classifier, nothing to trip.
      this project not to make. A persistent default across sessions is the user's
      own `~/.claude/settings.json` or `/config` to manage, not something this skill
      writes on their behalf.
-2. Check whether `config/config.local.json` exists **at the plugin root — the
-   `config/` directory that's a sibling of `skills/`, NOT
-   `${CLAUDE_SKILL_DIR}/config/`.** (`${CLAUDE_SKILL_DIR}` resolves to
-   `skills/dvd-autorip/`; a config file written there instead of the plugin root is a
-   real, previously-encountered mistake — it silently creates a second, divergent
-   config that the rest of this skill never reads, and won't necessarily be covered by
-   `config/.gitignore` either.) If it exists, run
-   `python ${CLAUDE_SKILL_DIR}/scripts/setup/validate_config.py <path>`. If it's
-   missing or reports problems, **ask the user conversationally** for whatever's
-   missing — this is a conversation, not a scripted prompt:
+2. **Check whether `~/.claude/dvd-autorip-skill/config.local.json` exists — a fixed
+   path outside this plugin's own directory tree entirely, not
+   `config/config.local.json` under the plugin root or `${CLAUDE_SKILL_DIR}`.** This
+   matters for a real reason, not just consistency: installing or updating this
+   plugin from a marketplace makes a fresh filesystem copy of the plugin's whole
+   directory into a new version-numbered cache folder every time — confirmed
+   empirically, including for a *local directory* marketplace source, where it's easy
+   to assume (wrongly) that the installed copy just references the live directory
+   live. Anything living inside the plugin's own tree, `config.local.json` included,
+   gets swept up in that copy: a live edit to it doesn't reach an already-running
+   session until the *exact* same version-bump-plus-`update`-plus-restart dance a code
+   change needs, and — more seriously — a config-carrying file that only exists
+   because a *previous* version's install created it has no guaranteed path to reach
+   a *new* version's freshly-copied folder at all, since a marketplace source (GitHub,
+   in the common case) never contains it in the first place. Keeping config
+   permanently outside the versioned plugin tree sidesteps both problems at once:
+   nothing ever overwrites it on update, and nothing ever discards it either.
+   - **One-time migration**: if `~/.claude/dvd-autorip-skill/config.local.json`
+     doesn't exist yet, **also check the old location**,
+     `config/config.local.json` at the plugin root (a sibling of `skills/`, not
+     `${CLAUDE_SKILL_DIR}/config/` — that distinction was the previously-documented
+     mistake here before the location moved at all). If a config exists there, this
+     is an existing user from before this change — **move it** (not copy) to the new
+     location: create `~/.claude/dvd-autorip-skill/` if needed, move the file there,
+     and tell the user plainly what happened and why, rather than silently asking
+     them to redo setup from scratch or leaving two copies to drift.
+   - If it exists (at the new location, or just migrated there), run
+     `python ${CLAUDE_SKILL_DIR}/scripts/setup/validate_config.py <path>`.
+   - If it's missing entirely (no migration candidate either) or reports problems,
+     **ask the user conversationally** for whatever's missing — this is a
+     conversation, not a scripted prompt:
    - **Whether they have a Jellyfin server to write metadata to at all** —
      `media_server.type`, `"jellyfin"` or `"none"`. Default to `"jellyfin"` if they
      don't say otherwise (matches every config written before this field existed).
@@ -252,9 +273,13 @@ command set, and nothing else — no classifier, nothing to trip.
      `references/bonus-content.md`. Default to `"ask"` if the user has no preference
      yet rather than guessing.
    - Anything else in `references/config-schema.md` that has no sensible default
-   Write/update `config/config.local.json` (plugin root, not `${CLAUDE_SKILL_DIR}`)
-   yourself once you have real values. Never commit this file, never echo the API key
-   back in full once it's set.
+   Write/update `~/.claude/dvd-autorip-skill/config.local.json` (creating the
+   directory first if needed) yourself once you have real values — never the
+   plugin-root or `${CLAUDE_SKILL_DIR}`-relative location above; that's only ever
+   read as a one-time migration source, never written to again. Never commit this
+   file (it isn't inside the repo at all anymore, but the habit still matters if a
+   user copies it somewhere for backup), never echo the API key back in full once
+   it's set.
 3. Run `python ${CLAUDE_SKILL_DIR}/scripts/check_dependencies.py --json` **in the
    foreground, not backgrounded — it has its own hard internal ceiling (90s total,
    10s per external tool it shells out to) and normally finishes in well under a
@@ -331,7 +356,14 @@ command set, and nothing else — no classifier, nothing to trip.
    because it checked both fields itself rather than short-circuiting on
    `protection_enabled` alone (see `references/gotchas.md`'s "Directory-scoping: a
    real safety feature, a global-vs-project-scope trap, and the staging-path
-   gotcha"). Treat the two fields as independent:
+   gotcha"). Treat these fields as independent:
+   - **`"config_path_in_scope": false`** — this means an *earlier* `enable` run
+     predates the fixed `~/.claude/dvd-autorip-skill/config.local.json` location
+     (config.local.json used to live inside the plugin root, so older installs never
+     needed this). Just re-run `enable` below — it adds the config directory to
+     `additionalDirectories` automatically, no user decision needed here (unlike
+     staging.path below, this location was never something the user chose, so there's
+     nothing to ask them about).
    - **`protection_enabled: false`** — ask the user conversationally (once per
      machine, same spirit as the other Stage 1 questions) whether they want it on:
      explain plainly that it scopes Claude's file reads to this plugin's own
@@ -355,16 +387,20 @@ command set, and nothing else — no classifier, nothing to trip.
        don't just fix the immediate problem and leave them to discover the flag is
        now required on every future launch.
      - Turn the protection off for now (only relevant if it was already on).
-   - Only if the user wants protection on and staging is confirmed in scope (or
-     they've just moved it there), run
+   - Run this **whenever `staging_path_in_scope` or `config_path_in_scope` is false
+     and the user wants protection on** (or `staging.path` has just been moved into
+     scope) — it's the fix for both, not just staging:
      `python ${CLAUDE_SKILL_DIR}/scripts/setup/check_directory_scoping.py enable
      --plugin-root <plugin root>` — it merges into
      `<plugin root>/.claude/settings.local.json` rather than overwriting, so any
-     other personal settings already there survive. This file lives inside the
-     plugin's own folder tree deliberately (same principle as `config/
-     config.local.json` — every skill dependency stays inside the skill, not
-     scattered across the machine) and is already covered by this repo's own
-     `.gitignore` — never commit it, it's personal-machine config, not something to
+     other personal settings already there survive, and it also adds the fixed
+     config directory to `additionalDirectories` automatically (deduped — safe to run
+     repeatedly). This settings file lives inside the plugin's own folder tree
+     deliberately — every OTHER skill dependency stays inside the skill, not
+     scattered across the machine; `config.local.json` is the one deliberate
+     exception, for the reasons in step 2 above — and is already covered by this
+     repo's own `.gitignore` — never commit it, it's personal-machine config, not
+     something to
      ship to other installs of this plugin.
    - **Takes effect on next session start, not immediately** — same as any other
      settings-file change; tell the user plainly if they're mid-session.

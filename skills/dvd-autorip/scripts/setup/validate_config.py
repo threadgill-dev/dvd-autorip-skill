@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Validate config/config.local.json against the schema documented in
-references/config-schema.md.
+"""Validate a dvd-autorip config.local.json against the schema documented in
+references/config-schema.md. Path-agnostic -- doesn't care whether it's pointed at
+the real, current location (~/.claude/dvd-autorip-skill/config.local.json) or the
+old plugin-root one (config/config.local.json, only ever relevant as a one-time
+migration source now).
 
 This script never prompts and never contains real values -- it only checks a file
 that Claude (or the user) already wrote. Prompting for missing values is a

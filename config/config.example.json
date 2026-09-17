@@ -1,5 +1,5 @@
 {
-  "$schema_note": "Copy this file to config.local.json and fill in real values, or let the skill do it for you conversationally on first run. See references/config-schema.md for a full description of every field. config.local.json is gitignored -- never commit it.",
+  "$schema_note": "Copy this file to ~/.claude/dvd-autorip-skill/config.local.json (NOT config/config.local.json here -- that old location is only ever read once, as a migration source) and fill in real values, or let the skill do it for you conversationally on first run. See references/config-schema.md for why the location is fixed outside the plugin tree, and for a full description of every field. Never commit a real config.local.json wherever it ends up.",
 
   "media_server": {
     "type": "jellyfin"

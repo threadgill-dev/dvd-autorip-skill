@@ -4,6 +4,56 @@ Everything here was found the hard way across real discs. Grouped by area; see
 `identification-technique.md` and `parallel-ripping.md` for the gotchas specific to
 those topics (kept there rather than duplicated here).
 
+## A live edit to this repo silently didn't reach a running session — twice, for two different reasons
+
+A real session ran a `media_server.type: "none"` batch and reported success, but a
+separate long-running/resumed session's Stage 1 had been marked "done" for the
+whole session back before that feature existed, and independently, the
+*persistently-installed marketplace plugin* was running on an 11:39am cache
+snapshot with zero mentions of `media_server` at all — confirmed by diffing the
+cache copy against the live repo file directly. Both were real, but neither
+explained the specific run in question; jumping from "the cache is stale" to "that's
+why this run behaved oddly" without checking which one actually launched it was a
+real mistake, corrected only because the run's own closing message was checked
+against the theory rather than the other way around.
+
+Root cause, once actually traced: **`claude plugin install`/`update` makes a real,
+version-numbered filesystem copy of the plugin directory — even for a `directory`-
+type marketplace source pointing at this exact live repo.** Confirmed by diffing a
+cached `SKILL.md` against the live one and finding genuine content differences, and
+independently confirmed via `claude plugin update` reporting "already at latest"
+against a stale cache purely because `plugin.json`'s version string hadn't changed —
+content differences alone don't trigger a refresh. **A running session only loads
+plugin content once, at process start — not on `/clear`, not on each skill
+invocation.** So a repo edit needs three things before it reaches a session using
+the *installed* plugin: a version bump in `plugin.json`, `claude plugin update`, and
+a full process restart (not `/clear`). None of the three alone is sufficient, and
+skipping any one silently leaves the old content in place with no error.
+
+**A second, more serious consequence of the same raw-copy behavior**: the copy
+included `config.local.json` (containing a real API key), `staging/monitor.log`,
+and `.gitignore` — everything in the directory, gitignored or not, `.git/` itself
+being the sole exclusion. Since `config.local.json` lived inside the plugin's own
+tree at the time, it inherited the exact same staleness problem as code, plus a
+worse one: a marketplace source that isn't a local directory (GitHub, the normal
+case for anyone who isn't developing this repo) never contains a real user's
+config in the first place, so there'd be no way for a version update to carry an
+existing user's config forward into the new version's freshly-copied folder at
+all — a plugin update could plausibly wipe a user's Jellyfin URL/key/library paths
+with no warning. **Fixed by moving `config.local.json` to a fixed path outside the
+plugin tree entirely** (`~/.claude/dvd-autorip-skill/config.local.json`, see
+`config-schema.md`), with a one-time migration from the old location so existing
+users don't lose their setup, and by teaching `check_directory_scoping.py` to add
+that fixed path to `additionalDirectories` automatically, since it's now
+unconditionally outside whatever directory `blockReadsOutsideWorkingDirectories`
+would otherwise scope reads to.
+
+**General lesson**: for a local-directory-sourced plugin, "I edited the source" and
+"the running session sees the edit" are two separate facts, and confirming one
+never proves the other — verify which artifact (cache vs. live source, this
+process's loaded content vs. current disk content) a specific observed behavior
+actually came from before building an explanation on top of it.
+
 ## A dependency check that should finish in under a second waited 12 hours instead
 
 Stage 1 backgrounded `check_dependencies.py` and then waited on it indefinitely — a
@@ -764,14 +814,22 @@ once the contradiction was pointed out directly, rather than trusting the more
 recent test over the more direct evidence.
 
 **Settled design, per explicit user decision**: the settings file stays at the
-plugin root, permanently — matching where `config/config.local.json` already
-lives, on the principle that every skill dependency belongs inside the skill's own
-folder tree, not scattered across the machine depending on how a given user
-happens to launch things. **Widening scope to cover a `staging.path` outside the
-plugin root is `--add-dir <staging.path>` at launch, not relocating this settings
-file** — `--add-dir` is Claude Code's own general mechanism for extending a
-session's working-directory set, and using it sidesteps ever needing to know the
-exact mechanics of where Claude Code's own project-settings lookup keys off in a
+plugin root, permanently, on the principle that every skill dependency belongs
+inside the skill's own folder tree, not scattered across the machine depending on
+how a given user happens to launch things — `config.local.json` was the other
+example of this principle at the time this was written, but it's since moved to a
+fixed path *outside* the plugin tree for an unrelated reason (see config-schema.md
+— marketplace installs/updates copy the plugin root fresh each time, which
+`config.local.json` needed to survive and this settings file doesn't, since Claude
+Code itself, not this skill, manages what happens to it on update). The directory-
+scoping check script accounts for that directly: `additionalDirectories` in this
+same settings file gets the fixed config path added automatically, rather than
+requiring the manual `--add-dir` fallback below. **Widening scope to cover a
+`staging.path` outside the plugin root is `--add-dir <staging.path>` at launch,
+not relocating this settings file** — `--add-dir` is Claude Code's own general
+mechanism for extending a session's working-directory set, and using it sidesteps
+ever needing to know the exact mechanics of where Claude Code's own project-settings
+lookup keys off in a
 given launch pattern. **General lesson**: when a single test result contradicts a
 broader claim, check whether the test actually addressed that claim before acting
 on it — "ancestor settings don't get inherited by a descendant" and "`--plugin-dir`
