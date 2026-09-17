@@ -17,6 +17,7 @@ found by actually hitting it on a real disc.
 
 - [Why this exists](#why-this-exists)
 - [What this is (and isn't)](#what-this-is-and-isnt)
+- [Recommended model](#recommended-model)
 - [Status](#status)
 - [Requirements](#requirements)
 - [Installing](#installing)
@@ -61,6 +62,19 @@ to run with Claude actively reasoning through each disc — subtitle/dialogue ma
 web search, cross-referencing your existing library — not a fixed decision tree. Only
 the rip and eject steps, which have needed zero judgment across hundreds of real discs,
 are fully automated (and, with two or more optical drives, run in parallel).
+
+## Recommended model
+
+**Sonnet 5 or later, effort `high`.** Stage 7's identification is real judgment, not
+a lookup — weighing conflicting evidence, catching a non-contiguous episode ordering,
+knowing when a duplicate-looking title actually isn't — and this repo's own
+development and hardening has all been done on Sonnet 5 at `effortLevel: high`
+(this is a Claude Code setting: `/model` and `/effort`, or `modelSettings` in
+`settings.json`). The fully-mechanized stages (rip, eject, dependency/config checks)
+are plain scripts and don't need a strong model at all; it's specifically the
+identification stage this recommendation is for. Not evaluated against a
+lower-effort setting or a smaller model — this is what it's actually been built and
+run on, not a guess at a minimum.
 
 ## Status
 
