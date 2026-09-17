@@ -94,6 +94,17 @@ since nothing after it can work without that tool anyway). Full mechanics:
 `references/dependency-install.md`. Remove an entry (or clear the whole array) to make
 Stage 1 ask about that tool again.
 
+### `setup.model_effort_ack` (boolean, optional, default `false`)
+Whether Stage 1's model/effort check has already been shown to the user once. `false`
+(or missing) means Stage 1 step 1 checks the running session's model/effort against
+the recommendation and asks about upgrading if it falls short, same as always. Once
+that's happened — **regardless of whether the user upgraded or declined** — Stage 1
+sets this to `true` and never runs that check again on any future run, so a user who
+deliberately runs on a lower tier isn't asked about it every single session. Set it
+back to `false` by hand (or delete the field) to be asked again — e.g. after
+upgrading your plan/access and wanting the skill to confirm you're actually getting
+the higher tier now.
+
 ### `bonus_content.handling` (string, optional, default `"ask"`)
 One of `"discard"`, `"keep"`, or `"ask"` — what to do with deleted scenes,
 featurettes, trailers, and other genuine bonus/extra content Stage 7 identifies on a

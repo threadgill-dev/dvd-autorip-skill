@@ -37,7 +37,8 @@
   },
 
   "setup": {
-    "declined_optional_installs": []
+    "declined_optional_installs": [],
+    "model_effort_ack": false
   },
 
   "parallel": {

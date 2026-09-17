@@ -99,6 +99,10 @@ def validate(config: dict) -> list[str]:
             if not isinstance(declined, list) or not all(isinstance(k, str) for k in declined):
                 problems.append("'setup.declined_optional_installs' must be an array of strings")
 
+            model_effort_ack = setup.get("model_effort_ack", False)
+            if not isinstance(model_effort_ack, bool):
+                problems.append("'setup.model_effort_ack' must be true or false")
+
     return problems
 
 
