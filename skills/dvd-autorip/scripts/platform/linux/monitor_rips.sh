@@ -96,10 +96,19 @@ else:
     if not out:
         print(0)
     else:
-        secs = 0
-        for part in out.replace("-", ":").split(":"):
-            secs = secs * 60 + int(part)
-        print(secs)
+        try:
+            secs = 0.0
+            for part in out.replace("-", ":").split(":"):
+                secs = secs * 60 + float(part)
+            print(int(secs))
+        except (ValueError, IndexError):
+            # macOS's ps -o time= prints fractional seconds (e.g. "0:04.11"),
+            # unlike Linux's whole-second "01:02:03" -- confirmed via a real
+            # crash report (int() rejecting "04.11"). float() handles that; this
+            # guard is the same safety net the /proc branch above already has,
+            # now applied here too so an unexpected future ps format can't take
+            # the whole monitor down.
+            print(0)
 PYEOF
 }
 
