@@ -1,6 +1,10 @@
 {
   "$schema_note": "Copy this file to config.local.json and fill in real values, or let the skill do it for you conversationally on first run. See references/config-schema.md for a full description of every field. config.local.json is gitignored -- never commit it.",
 
+  "media_server": {
+    "type": "jellyfin"
+  },
+
   "jellyfin": {
     "base_url": "http://REPLACE_ME:8096",
     "api_key": "REPLACE_ME"

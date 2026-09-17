@@ -148,6 +148,31 @@ Use it as a standing cross-check while working through Steps 0-2 per title:
   disc-breakdown listings aren't always available or accurate, and finding one
   doesn't replace confirming each title's actual identity via Steps 0-2.
 
+## Identifying without a media server
+
+`media_server.type: "none"` (see `config-schema.md`) means there's no Jellyfin
+instance to query — used for a plain correctly-named-files setup, or for a Plex
+library, since nothing here talks to Plex's API. This changes exactly one thing in
+this stage and nothing else: **the `Items/RemoteSearch/Movie`/`Series` call
+(Step 2's "official disc-breakdown research" and the id-resolution step in SKILL.md's
+Stage 7) is skipped.** That call serves two purposes normally — a second independent
+source corroborating the evidence-based identification, and producing a real TMDB id
+for Stage 9's Jellyfin write. Neither purpose applies without a server: there's no
+write to produce an id for, and a plain web search (already used throughout Steps
+0-2, and explicitly in Step 2b) fills the corroboration role just as well — it's the
+same kind of independent, external cross-check, just not routed through Jellyfin's
+own TMDB proxy.
+
+**Everything else about this stage is identical.** The evidence-gathering discipline
+(cheapest-first, stop once confident, frame extraction when subtitles are absent),
+the TV-discs-never-span-seasons hard rule, the duplicate-encode caution below, the
+disc-level episode checklist — none of it is Jellyfin-specific, and none of it gets
+relaxed just because there's no server to write to afterward. If anything, get this
+right the first time matters *more* in `"none"` mode: there's no Stage 12
+verification-against-a-server to catch a wrong filename later (see `SKILL.md`'s
+Stage 12), so a mistake here is more likely to go unnoticed than in the `jellyfin`
+path.
+
 ## Never permanently delete a suspected duplicate encode without explicit confirmation
 
 Two titles independently matching the same search result is weaker evidence of
