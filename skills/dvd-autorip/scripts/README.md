@@ -24,6 +24,10 @@ for browsing the repo.
   in the skill; not invoked at all under `media_server.type: "none"`.
 - **`run_timer.py`** — tracks total wall-clock run time across a batch for Stage 13's
   closing message.
+- **`run_report.py`** — accumulates per-disc placements, bonus-content handling,
+  pre-rip exclusions, needs-review outcomes, and any hiccups/errors across the whole
+  batch, then renders Stage 13's formalized closing report. Stages 3/12/13, plus
+  `add-issue` callable from anywhere.
 
 ## `setup/`
 
