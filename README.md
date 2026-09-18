@@ -16,6 +16,7 @@ found by actually hitting it on a real disc.
 ## Contents
 
 - [Why this exists](#why-this-exists)
+- [How this compares to ARM / FileBot](#how-this-compares-to-arm--filebot)
 - [What this is (and isn't)](#what-this-is-and-isnt)
 - [Recommended model](#recommended-model)
 - [Status](#status)
@@ -52,6 +53,48 @@ pipeline — see `skills/dvd-autorip/references/gotchas.md`), but Plex's own sca
 picks up correctly-named, correctly-organized files on its own, and its built-in
 matching is generally trusted more than Jellyfin's fuzzy matcher anyway — arguably
 making Plex users a better fit for `"none"` mode than Jellyfin users are.
+
+## How this compares to ARM / FileBot
+
+**Not a replacement for either — a narrower, niche alternative aimed at one specific
+part of the problem.** Both are mature, actively developed, genuinely good tools;
+this section exists because the comparison keeps coming up, not to argue either one
+is worse at what it actually does.
+
+**[ARM (Automatic Ripping Machine)](https://github.com/automatic-ripping-machine/automatic-ripping-machine)**
+automates the whole unattended pipeline — insert a disc, walk away — and identifies
+movies/shows via an OMDb lookup keyed off the disc's own metadata. By its own
+maintainers' words, as of 2025: *"Its not attempted at all, as this info isnt
+provided from the disc, or OMDB"* — it does not attempt per-episode identification
+on TV discs at all. It gets the show right, not which title is which episode. That's
+a scope choice on their part, not a flaw — just a different problem than the one
+this skill targets.
+
+**[FileBot](https://www.filebot.net/)** is a mature, widely-used renamer for files
+that already exist, matching against TheTVDB/TMDB/AniDB. When a file's name doesn't
+already carry an episode number (the normal case for a raw MakeMKV/ARM rip),
+FileBot's own documented guidance is to trust file order as episode order and
+number sequentially — a reasonable default for the common case, but not verified
+against the actual video content. The common combo — rip with ARM, rename with
+FileBot against TheTVDB — inherits this: neither step ever looks at what's actually
+in the file.
+
+**What this skill does differently**: it verifies each title's identity against the
+disc's actual dialogue/subtitles/frames before ever placing or naming a file,
+specifically to catch cases where file order or a metadata lookup alone gets it
+wrong. A genuinely non-sequential disc (titles in on-disc order reading S03E05, E06,
+E13, E08 — actually E07, not E13) and a real duplicate-encode misidentification are
+both documented incidents in this project's own gotchas file, not hypotheticals.
+That verification is also the real tradeoff: it costs LLM inference time per disc,
+where ARM's lookup and FileBot's renaming are near-instant. If your discs are
+well-behaved and occasional manual cleanup is fine, ARM (or ARM piped through
+FileBot) is a lighter, faster, more mature choice for most collections. This exists
+for the case where getting it right the first time, unattended, matters more than
+speed.
+
+*Comparisons current as of September 2026 — both projects are actively developed
+and may close this gap; corrections welcome via an [issue](https://github.com/threadgill-dev/dvd-autorip-skill/issues)
+if something here goes stale.*
 
 ## What this is (and isn't)
 
