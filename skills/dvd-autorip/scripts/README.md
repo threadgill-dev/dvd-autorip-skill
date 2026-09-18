@@ -15,6 +15,10 @@ for browsing the repo.
 - **`detect_exclusions.py`** — pre-rip exclusion detection from MakeMKV's own disc
   info scan: concat/Play-All titles and duplicate-source titles, before wasting time
   ripping either. Stage 4.
+- **`discdb_lookup.py`** — computes a mounted disc's TheDiscDB ContentHash directly
+  from its `VIDEO_TS` folder and queries TheDiscDB's public GraphQL API for an
+  exact-disc match with a pre-mapped title layout. Read-only, no MakeMKV involved.
+  Stage 3.5.
 - **`file_bonus_content.py`** — files "keep" bonus/extra content into the standard
   Special Features folder convention. Filesystem-only; not Jellyfin-specific. Stages
   8/10.

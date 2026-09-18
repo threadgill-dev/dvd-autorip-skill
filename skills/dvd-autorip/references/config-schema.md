@@ -157,6 +157,17 @@ Caps how many optical drives are ripped from simultaneously. `null` means "use h
 many drives Stage 3's discovery scan finds." See `references/parallel-ripping.md` for
 why more drives isn't always better on memory-constrained machines.
 
+### `discdb.enabled` (boolean, optional, default `true`)
+Whether Stage 3.5 looks up each mounted disc against TheDiscDB's public API
+(`https://thediscdb.com/graphql/`) before ripping. Read-only, no account or API key
+involved, and best-effort (a miss or network failure just falls through to this
+skill's normal Stage 4→6→7 flow, silently). Set to `false` if you don't want this
+skill making any third-party network call at all, even a read-only one — every disc
+then behaves exactly as it did before this feature existed. See
+`references/discdb-integration.md` for the full mechanism and the cross-check
+discipline that gates when a hit is trusted enough to skip live identification for a
+title.
+
 ## Validating
 
 `scripts/setup/validate_config.py <path-to-config.local.json>` checks the file exists,
