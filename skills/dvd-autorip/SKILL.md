@@ -118,7 +118,8 @@ it isn't spelled out again.
 **Cross-platform Python** — `scripts/*.py` directly under `scripts/` (not under
 `platform/windows` or `platform/linux`): `check_dependencies.py`,
 `setup/validate_config.py`, `setup/check_directory_scoping.py`, `detect_exclusions.py`,
-`jellyfin_api.py`, `file_bonus_content.py`, `discdb_lookup.py`, and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
+`jellyfin_api.py`, `file_bonus_content.py`, `discdb_lookup.py`, `discdb_crosscheck.py`,
+and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
 parsing, HTTP calls, filesystem moves, and reading a mounted disc's `VIDEO_TS` folder
 work identically everywhere Python 3.8+ runs) so there's exactly one version, invoked
 the same way on every OS:
@@ -531,17 +532,25 @@ enumeration — and applies both checks below in one pass) and check its result,
      single-surviving-file shape makes the waste asymmetric, and because
      `"discard"` guarantees those titles would never survive placement regardless of
      whether they're ripped.
-4. **Only when Stage 3.5 returned a `"matched": true` result for this drive, and
-   only when `bonus_content.handling` is `"discard"`** — cross-check each
-   `discdb_lookup.py` title against this script's own scan at the same title index
-   (duration within ±3 seconds, per `references/discdb-integration.md`'s cross-check
-   discipline). A title that passes the cross-check and is mapped `"Extra"` is
-   excluded from the rip, same as a confirmed concat/duplicate title above — this is
-   a new *source* feeding the same exclusion list, not a new mechanism. **A title that
-   fails the cross-check gets no shortcut at all here** — leave it in the normal rip
-   list; it's still eligible for Stage 6/7's live identification same as if Stage 3.5
-   had missed entirely. This check has no effect under `"keep"`/`"ask"` — same
-   reasoning as check 3 above.
+4. **Only when Stage 3.5 returned a `"matched": true` result for this drive** — run
+   `python ${CLAUDE_SKILL_DIR}/scripts/discdb_crosscheck.py --discdb-json
+   '<discdb_lookup.py's stdout>' --makemkv-json '<this script's own stdout>'` to bind
+   each `discdb_lookup.py` title to a real MakeMKV title by nearest-duration match
+   (**not by assuming the same index** — confirmed live against a real disc that this
+   fails badly: MakeMKV found 18 real titles where TheDiscDB's mapping had 33 entries,
+   and same-index comparison confirmed only 3 of 33 where nearest-duration binding
+   correctly confirmed all 18; full detail in `references/discdb-integration.md`). Run
+   this unconditionally on a hit, regardless of `bonus_content.handling` — Stage 6/7
+   further down need the `"bound"` result to skip live identification for confirmed
+   `MainMovie`/`Episode` titles no matter how bonus content is configured. **A title
+   in `"unbound_makemkv_ids"` gets no shortcut anywhere in this pipeline** — treat it
+   exactly as if Stage 3.5 had missed entirely.
+   - **Only when `bonus_content.handling` is `"discard"`**: a MakeMKV title id in the
+     `"bound"` list mapped to `"Extra"` is excluded from the rip itself, same as a
+     confirmed concat/duplicate title above — this is a new *source* feeding the same
+     exclusion list, not a new mechanism. Under `"keep"`/`"ask"`, a confirmed `"Extra"`
+     title still rips normally (same reasoning as check 3 above) — the binding is used
+     later, at Stage 8, to skip Stage 7 for it, not to exclude it here.
 
 **With more than one drive, issue these `detect_exclusions.py` calls as separate
 `Bash`/`PowerShell` tool calls bundled together in one response, not one at a
@@ -632,10 +641,11 @@ as literal on-screen text, which can save the rest of Stage 7 entirely for TV di
 
 ## Stage 6 — Classify movie vs. TV disc
 
-**Skip this for any title Stage 3.5/Stage 4 check 4 confirmed** (a `discdb_lookup.py`
-hit that passed the duration cross-check, mapped to `"MainMovie"` or `"Episode"`) —
-its content type is already known, not a heuristic guess. Classify every other title
-on the disc as before:
+**Skip this for any MakeMKV title id appearing in Stage 4 check 4's
+`discdb_crosscheck.py` `"bound"` list with type `"MainMovie"` or `"Episode"`** — its
+content type is already known, not a heuristic guess. Classify every other title on
+the disc as before (including any bound `"Extra"` title — Stage 6's movie/TV
+classification doesn't apply to those either way):
 
 Heuristic, not a hard rule: 1 title >50min → movie disc. Multiple titles in the
 18-45min range → TV season disc. A disc that doesn't cleanly fit either shape is its
@@ -643,11 +653,13 @@ own outcome — "investigate further" — not a forced guess in either direction
 
 ## Stage 7 — Identify
 
-**Skip this entirely for any title confirmed per Stage 6 above** — go straight to
-Stage 8 using `discdb_lookup.py`'s title/season/episode/TMDB id for that title, same
-as if Stage 7 had established it live. Everything below in this stage is for titles
-Stage 3.5 missed, didn't confirm, or that failed the cross-check — the common case
-today, and the only case at all when `discdb.enabled` is `false`.
+**Skip this entirely for any title bound per Stage 6 above, and for any bound
+`"Extra"` title (regardless of `bonus_content.handling`)** — go straight to Stage 8
+using the binding's title/season/episode/TMDB id (for confirmed main content) or
+subtype (for confirmed bonus content), same as if Stage 7 had established it live.
+Everything below in this stage is for titles Stage 3.5 missed, or that
+`discdb_crosscheck.py` left in `"unbound_makemkv_ids"` — the common case today, and
+the only case at all when `discdb.enabled` is `false`.
 
 Read `references/identification-technique.md` now if you haven't already this
 session — it has the full adaptive procedure (subtitle-type branching, when to OCR,
@@ -711,10 +723,10 @@ main-content encodes.
 
 ## Stage 8 — Place + scan
 
-High-confidence main-content items — Stage 7-identified or Stage 3.5-confirmed alike
-— move into `{library.movies_path}` or `{library.shows_path}\{Show}\Season N\` per
-the naming templates in config, using whichever source (live identification or a
-confirmed `discdb_lookup.py` mapping) established the title/season/episode/TMDB id;
+High-confidence main-content items — Stage 7-identified or Stage 3.5/6/7-confirmed
+alike — move into `{library.movies_path}` or `{library.shows_path}\{Show}\Season N\`
+per the naming templates in config, using whichever source (live identification or a
+`discdb_crosscheck.py` binding) established the title/season/episode/TMDB id;
 nothing else about this stage's mechanics changes based on which source it was.
 **When
 `media_server.type` is `"jellyfin"`**, follow with
@@ -724,8 +736,8 @@ wrong, corrected unconditionally next (Stage 9). **When `media_server.type` is
 `"none"`, this stage is just the file move** — no refresh call, nothing to correct
 afterward (Stage 9 doesn't run at all in this mode).
 
-**Bonus/extra content classified in Stage 7, or confirmed `"Extra"` by Stage 3.5/Stage
-4 check 4** gets handled per
+**Bonus/extra content classified in Stage 7, or bound to `"Extra"` by Stage 4 check
+4's `discdb_crosscheck.py` call** gets handled per
 `config.local.json`'s `bonus_content.handling` (full mechanics in
 `references/bonus-content.md`) — this part is unaffected by `media_server.type`, the
 extras-folder convention `file_bonus_content.py` uses isn't Jellyfin-specific:

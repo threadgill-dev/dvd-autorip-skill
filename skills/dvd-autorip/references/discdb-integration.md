@@ -14,7 +14,10 @@ auto-apply — see "The cross-check discipline" below.
 `ContentHash` from the raw mounted filesystem and queries TheDiscDB's public GraphQL
 API (`https://thediscdb.com/graphql/`, no auth needed for reads). It never talks to
 MakeMKV and never writes anything — read-only, best-effort, safe to call on every
-disc.
+disc. `scripts/discdb_crosscheck.py` is the companion script that binds a hit's title
+mapping to MakeMKV's own real title list (see "The cross-check discipline" below) —
+`discdb_lookup.py` never talks to MakeMKV, and `discdb_crosscheck.py` never talks to
+TheDiscDB; each does exactly one of the two things a hit needs.
 
 ## Where this runs
 
@@ -125,15 +128,45 @@ crowd-sourced disc-mapping network (confirmed by reading its source: "MakeMKV ve
 drift can shuffle title indices, so we never trust the network's title_index blindly
 — we re-bind by physical signature").
 
-So: run Stage 4's `detect_exclusions.py` (its own MakeMKV `-r info disc:N` scan) as
-normal, then cross-check each `discdb_lookup.py` title against the MakeMKV title at
-the *same index* — **duration within ±3 seconds** (matching the tolerance a real
-third-party client applies for its own physical-signature re-bind). Only a title
-that passes this cross-check is "confirmed" for the shortcuts below. A title whose
-discdb-mapped type looks like an episode but fails the duration cross-check gets
-**no shortcut at all** — it falls through to normal Stage 6/7 treatment (and Stage 11
-if still ambiguous after that), never auto-excluded or auto-placed on the strength of
-a mismatched cross-check.
+**Same-index comparison was the original design here and it fails badly in
+practice — confirmed live, not theoretical.** Against a real disc (Example Movie, 2003
+Fullscreen DVD, a genuine `"matched": true` hit), this machine's MakeMKV scan found
+only **18 real titles**, while TheDiscDB's mapping had **33 entries** — every entry
+TheDiscDB catalogued that runs under roughly two minutes simply never appears in
+`-r info disc:N`'s output on this machine at all (MakeMKV's own default minimum
+title length; a real, separate gap in this pipeline's MakeMKV scanning generally,
+logged but explicitly out of scope for this feature). Once the two title counts
+diverge like that, same-index comparison stops meaning anything past the point of
+divergence: TheDiscDB's index 3 was this disc's real MakeMKV title 2, index 7 was
+MakeMKV title 4, and so on. Checking "same index, duration within tolerance"
+confirmed only **3 of the 33** titles on that real disc.
+
+So instead: `scripts/discdb_crosscheck.py` binds by **nearest-duration match across
+every title on both sides**, not by index — the actual "re-bind by physical
+signature" approach, applied for real instead of just cited as inspiration. Run
+Stage 4's `detect_exclusions.py` (its own MakeMKV `-r info disc:N` scan) as normal,
+then:
+```
+python discdb_crosscheck.py --discdb-json '<discdb_lookup.py stdout>'
+    --makemkv-json '<detect_exclusions.py stdout>'
+```
+It finds every (discdb title, MakeMKV title) pair within **±3 seconds** duration
+(matching the tolerance a real third-party client applies for its own
+physical-signature re-bind), then greedily assigns the closest pairs first, each
+title on either side used at most once — no MakeMKV title claimed by two discdb
+entries, no discdb entry claimed by two MakeMKV titles. On the same real disc, this
+bound **18 of 18** — every MakeMKV title the disc actually has, correctly, with zero
+collisions (verified: every bound pair had a duration difference of exactly 0
+seconds on that run). The 15 unbound discdb entries were exactly the short clips
+MakeMKV's scan never listed — not a matching failure, a title MakeMKV didn't surface
+at all to bind against.
+
+Only a MakeMKV title id appearing in the result's `"bound"` list is "confirmed" for
+the shortcuts below. **A MakeMKV title id in `"unbound_makemkv_ids"` gets no shortcut
+at all** — it falls through to normal Stage 6/7 treatment (and Stage 11 if still
+ambiguous after that), exactly as if Stage 3.5 had missed the disc entirely. A disc
+that missed at Stage 3.5 (`"matched": false`) never needs `discdb_crosscheck.py`
+run at all — every title is unbound by construction.
 
 **The "TV disc never spans seasons" hard rule (SKILL.md Stage 7) still applies
 unconditionally.** A confirmed hit shouldn't ever disagree with it — a hash-confirmed
@@ -144,8 +177,8 @@ span seasons.
 
 ## What a confirmed title unlocks
 
-For each title where the cross-check above passes, keyed by the disc-info scan's
-`item.type`:
+For each MakeMKV title id in `discdb_crosscheck.py`'s `"bound"` list, keyed by that
+entry's `"type"`:
 
 - **`"MainMovie"` or `"Episode"`** — confirmed main content. Skip Stage 6
   (classification) and Stage 7 (identification) for this title entirely: its
@@ -161,17 +194,21 @@ For each title where the cross-check above passes, keyed by the disc-info scan's
   `"keep"`, or `"ask"`, unchanged mechanics.
 - **A combined title's episode range** (TheDiscDB stores this as a string like
   `"17-18"` or `"9-10"` — a two-segment cartoon block, a two-part episode) —
-  `discdb_lookup.py` already expands this into the full `episodes` list; treat every
-  episode in that list as covered by this one title, same as this pipeline already
-  handles a combined title identified live in Stage 7.
-- **Empty/unrecognized `item.type` (no mapping for that title at all)** — not
-  confirmed, no shortcut. TheDiscDB's own catalog leaves plenty of titles unmapped
-  (menu loops, studio bumpers, trailers with no assigned type) — this is expected,
-  not a sign the disc's hash match is wrong. Falls through to normal Stage 6/7.
+  `discdb_lookup.py` already expands this into the full `episodes` list, and
+  `discdb_crosscheck.py` carries it through into each bound entry's `"episodes"`
+  field; treat every episode in that list as covered by this one title, same as this
+  pipeline already handles a combined title identified live in Stage 7.
+- **A title with no discdb title within tolerance at all** — never appears in
+  `"bound"` in the first place, so there's nothing to key on; it's just a normal
+  member of `"unbound_makemkv_ids"`. TheDiscDB's own catalog also leaves some titles
+  genuinely unmapped even when they do bind (an empty `item.type`/`item.title` on a
+  bound entry — a menu loop or studio bumper TheDiscDB recorded but never
+  classified) — treat that the same as unbound: not confirmed, no shortcut, falls
+  through to normal Stage 6/7.
 
 ## Pre-rip exclusion (feeds Stage 4 step 1)
 
-A confirmed `"Extra"` title under `bonus_content.handling: "discard"` is excluded
+A bound `"Extra"` title under `bonus_content.handling: "discard"` is excluded
 from the rip itself, not just from placement afterward — add its title id to the
 same exclusion list Stage 4 step 1 already builds from `detect_exclusions.py`'s
 concat/duplicate verdicts, before calling `launch_rip`. This is a new *source* for

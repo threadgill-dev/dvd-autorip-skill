@@ -19,6 +19,10 @@ for browsing the repo.
   from its `VIDEO_TS` folder and queries TheDiscDB's public GraphQL API for an
   exact-disc match with a pre-mapped title layout. Read-only, no MakeMKV involved.
   Stage 3.5.
+- **`discdb_crosscheck.py`** — binds a `discdb_lookup.py` hit's title mapping to
+  `detect_exclusions.py`'s real MakeMKV title list by nearest-duration match (not by
+  assuming the same index — confirmed live that same-index binding fails badly when
+  MakeMKV's title count doesn't match TheDiscDB's). Stage 4 check 4.
 - **`file_bonus_content.py`** — files "keep" bonus/extra content into the standard
   Special Features folder convention. Filesystem-only; not Jellyfin-specific. Stages
   8/10.
