@@ -994,6 +994,22 @@ this is just the verified facts:
   double-encoded) — don't hand-encode a query value yourself before passing it to
   the script, it isn't necessary anymore and a manually-encoded value still passes
   through correctly either way.
+- **`GET /Items?IncludeItemTypes=Movie&Recursive=true` silently excludes any movie
+  that belongs to a Jellyfin collection/BoxSet** — confirmed live, and confirmed to
+  be the real cause of a duplicate-check miss, not a guess. TheDiscDB confirmed a
+  disc's identity (TMDB id 12345, Example Movie) before ripping it, and
+  `check_library_duplicate.py` still reported `"found": false` against a library
+  that already had the movie. A/B testing the raw query directly showed why: the
+  "Example Movie Collection" BoxSet itself came back in the result, but **none of its three
+  member movies** — `TotalRecordCount` confirmed the response wasn't just
+  truncated, those items were genuinely absent. Adding `&collapseBoxSetItems=false`
+  to the identical query fixed it completely (358 → 509 items on this server, all
+  three Example Movie movies present). This isn't a rare edge case — any movie grouped into
+  a franchise collection (Marvel, Disney, Studio Ghibli, etc. — this server alone
+  had 151 movies affected) is invisible to a flat type-filtered query by default.
+  Any script or query that needs to see every real movie, not just ungrouped ones,
+  needs `collapseBoxSetItems=false` explicitly — `check_library_duplicate.py` now
+  always passes it on its one list-fetch.
 
 ## A hand-built file move silently overwrote an already-owned movie
 

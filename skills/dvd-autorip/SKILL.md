@@ -557,7 +557,10 @@ enumeration — and applies both checks below in one pass) and check its result,
    `"MainMovie"`, and only when `media_server.type` is `"jellyfin"`** — check whether
    this movie is already in the library before ripping it:
    `python ${CLAUDE_SKILL_DIR}/scripts/check_library_duplicate.py <config path>
-   --tmdb-id <the bound title's TMDB id, from discdb_lookup.py's media_item.tmdb_id>`.
+   --tmdb-id <media_item.tmdb_id> --title <media_item.title> --year <media_item.year>`
+   (all three from `discdb_lookup.py`'s `media_item` — always pass `--title`/`--year`,
+   not just `--tmdb-id`, so a pre-existing library entry with a missing/wrong TMDB id
+   still gets caught; see `references/library-duplicates.md`).
    **When `"found": false`**, nothing to do — proceed as normal. **When `"found":
    true`**, apply `config.local.json`'s `library_duplicates.handling`
    (`references/config-schema.md` has the full field; `references/library-duplicates.md`
@@ -757,7 +760,9 @@ already resolved this before the rip and never reaches here), and only when
 `media_server.type` is `"jellyfin"`** — this is the check's *second* call site,
 after ripping instead of before: check the library before placing it —
 `python ${CLAUDE_SKILL_DIR}/scripts/check_library_duplicate.py <config path>
---tmdb-id <Stage 7's confirmed TMDB id>`. **When `"found": false`**, place normally,
+--tmdb-id <Stage 7's confirmed TMDB id> --title <confirmed title> --year <confirmed
+year>` (same reasoning as Stage 4 check 5 — always pass title/year, not just the
+TMDB id). **When `"found": false`**, place normally,
 below. **When `"found": true`**, apply `library_duplicates.handling`
 (`references/library-duplicates.md` has the full mechanism and why its actions
 differ from Stage 4 check 5's):
