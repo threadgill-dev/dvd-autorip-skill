@@ -116,54 +116,46 @@ def cmd_add_issue(staging_path: str, stage: str, severity: str, message: str) ->
     return {"ok": True}
 
 
+def _cell(value: object, default: str = "--") -> str:
+    """A markdown table cell: escape pipes/newlines, `--` for an empty value."""
+    if value is None or value == "":
+        return default
+    return str(value).replace("|", "\\|").replace("\n", " ").strip()
+
+
 def _format_disc(disc: dict) -> str:
     label = disc.get("volume_label", "(unknown volume)")
     drive = disc.get("drive_index")
-    header = f"--- {label}" + (f" (drive {drive})" if drive is not None else "") + " ---"
-    lines = [header]
+    header = f"### {label}" + (f" (drive {drive})" if drive is not None else "")
 
-    placed = disc.get("placed") or []
-    if placed:
-        lines.append(f"Placed ({len(placed)}):")
-        for item in placed:
-            lines.append(f"  - {item.get('filename', '(unnamed)')}")
-    else:
-        lines.append("Placed: none")
+    rows: list[tuple[str, str, str]] = []
+    for item in disc.get("placed") or []:
+        rows.append(("Placed", _cell(item.get("filename"), "(unnamed)"), "--"))
+    for item in disc.get("bonus") or []:
+        name = _cell(item.get("filename"), "(unnamed)")
+        if item.get("subtype"):
+            name += f" [{_cell(item['subtype'])}]"
+        rows.append(("Bonus", name, _cell(item.get("handling"), "unknown")))
+    for item in disc.get("excluded_pre_rip") or []:
+        rows.append(("Excluded pre-rip", f"title {_cell(item.get('title_id'), '?')}", _cell(item.get("reason"), "unspecified")))
+    for item in disc.get("needs_review") or []:
+        rows.append(("Needs review", _cell(item.get("description"), "(no description)"), _cell(item.get("resolution"), "unresolved")))
 
-    bonus = disc.get("bonus") or []
-    if bonus:
-        lines.append(f"Bonus content ({len(bonus)}):")
-        for item in bonus:
-            subtype = f" [{item['subtype']}]" if item.get("subtype") else ""
-            lines.append(f"  - {item.get('filename', '(unnamed)')}{subtype} -- {item.get('handling', 'unknown')}")
-    else:
-        lines.append("Bonus content: none")
+    if not rows:
+        return f"{header}\n\nNothing recorded for this disc."
 
-    excluded = disc.get("excluded_pre_rip") or []
-    if excluded:
-        lines.append(f"Excluded pre-rip ({len(excluded)}):")
-        for item in excluded:
-            lines.append(f"  - title {item.get('title_id', '?')}: {item.get('reason', 'unspecified')}")
-    else:
-        lines.append("Excluded pre-rip: none")
-
-    needs_review = disc.get("needs_review") or []
-    if needs_review:
-        lines.append(f"Needs review ({len(needs_review)}):")
-        for item in needs_review:
-            lines.append(f"  - {item.get('description', '(no description)')} -- {item.get('resolution', 'unresolved')}")
-    else:
-        lines.append("Needs review: none")
-
+    lines = [header, "", "| Category | Item | Detail |", "|---|---|---|"]
+    lines.extend(f"| {category} | {item} | {detail} |" for category, item, detail in rows)
     return "\n".join(lines)
 
 
 def _render(report: dict, elapsed: str | None) -> str:
-    lines = ["=== DVD Autorip -- Run Summary ==="]
-    if elapsed:
-        lines.append(f"Runtime: {elapsed}")
+    lines = ["## DVD Autorip -- Run Summary", ""]
     discs = report.get("discs", [])
-    lines.append(f"Discs processed: {len(discs)}")
+    summary_bits = [f"**Discs processed:** {len(discs)}"]
+    if elapsed:
+        summary_bits.insert(0, f"**Runtime:** {elapsed}")
+    lines.append("  \n".join(summary_bits))
     lines.append("")
 
     for disc in discs:
@@ -172,9 +164,15 @@ def _render(report: dict, elapsed: str | None) -> str:
 
     issues = report.get("issues", [])
     if issues:
-        lines.append(f"=== Issues ({len(issues)}) ===")
+        lines.append(f"### Issues ({len(issues)})")
+        lines.append("")
+        lines.append("| Severity | Stage | Message |")
+        lines.append("|---|---|---|")
         for issue in issues:
-            lines.append(f"[{issue.get('severity', 'warning')}] {issue.get('stage', '?')}: {issue.get('message', '')}")
+            severity = _cell(issue.get("severity"), "warning")
+            stage = _cell(issue.get("stage"), "?")
+            message = _cell(issue.get("message"), "")
+            lines.append(f"| {severity} | {stage} | {message} |")
     else:
         lines.append("No hiccups or errors this run.")
 
