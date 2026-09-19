@@ -985,3 +985,12 @@ this is just the verified facts:
   skill routes through it** — it tries the new header first and falls back to the
   old one on every single call, not just at Stage 1 setup, so this fallback is
   already in effect if the same thing happens again mid-session.
+- **A raw space (or other unescaped character) in a query-parameter value makes
+  `urlopen` raise `InvalidURL` outright** — confirmed live, e.g. `GET
+  Items?SearchTerm=50 First Dates` failed hard rather than just mis-searching. A
+  real run worked around it by hand-encoding the space as `%20` before passing the
+  path to `jellyfin_api.py`. `jellyfin_api.py` now does this automatically (every
+  query value gets percent-encoded, `%`-safe so an already-encoded value isn't
+  double-encoded) — don't hand-encode a query value yourself before passing it to
+  the script, it isn't necessary anymore and a manually-encoded value still passes
+  through correctly either way.
