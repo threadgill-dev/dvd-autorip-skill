@@ -68,6 +68,9 @@ all of it in context up front:
 - `references/dependency-install.md` — Stage 1's missing-tool flow: when to offer
   installing something, when to hard stop, when to remember a decline so future runs
   stop asking
+- `references/run-report.md` — the formalized closing report: what gets recorded
+  where (Stage 3 start, Stage 12 per-disc, `add-issue` anywhere), and exactly what
+  Stage 13 renders and relays to the user
 
 ## Running the bundled scripts
 
@@ -115,7 +118,7 @@ it isn't spelled out again.
 **Cross-platform Python** — `scripts/*.py` directly under `scripts/` (not under
 `platform/windows` or `platform/linux`): `check_dependencies.py`,
 `setup/validate_config.py`, `setup/check_directory_scoping.py`, `detect_exclusions.py`,
-`jellyfin_api.py`, `file_bonus_content.py`, and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
+`jellyfin_api.py`, `file_bonus_content.py`, `run_timer.py`, and `run_report.py`. These have no OS-specific behavior (MakeMKV robot-mode
 parsing, HTTP calls, and filesystem moves work identically everywhere Python 3.8+
 runs) so there's exactly one version, invoked the same way on every OS:
 
@@ -430,6 +433,18 @@ run time:
 — writes into `staging.path`, same reasoning as `rip_processes.json`: a file
 survives the whole batch reliably, don't rely on remembering a timestamp across
 what can be an hours-long, multi-compaction session.
+
+**Start this batch's run report now too, same call site, same reasoning**:
+`python ${CLAUDE_SKILL_DIR}/scripts/run_report.py start --staging-path
+<staging.path>`. This is the accumulator Stage 12 and Stage 13 build the formalized
+closing report from — see `references/run-report.md` for the full mechanism and
+exactly what to record where. From here through Stage 13, whenever something in the
+run doesn't go the way it should have (a failed dependency install, an auth
+fallback, a disc needing salvage, an unexpected retry — a judgment call each time,
+not a fixed list), record it immediately with `run_report.py add-issue` rather than
+trying to remember it for the closing message — the same "don't rely on remembering
+something across a multi-compaction session" reasoning as the timer above, and the
+same discipline Stage 11 already applies to needs-review items.
 
 ## Stage 4 — Rip
 
@@ -792,6 +807,14 @@ cleaning it up or ejecting it, before an outstanding bonus-content question or a
 still-unaddressed needs-review title is resolved, sends a false "done" signal to the
 user).
 
+**Record this disc's outcome into the run report now too, same per-disc point, right
+before cleanup** — `python ${CLAUDE_SKILL_DIR}/scripts/run_report.py add-disc
+--staging-path <staging.path> --data '<json>'` (see `references/run-report.md` for
+the exact shape: what got placed, any bonus content and how it was handled, any
+pre-rip exclusions, any needs-review items and how Stage 11 resolved them). Do this
+before deleting the disc's staging files below, not after — the filenames/details
+being recorded live in exactly the files this step is about to delete.
+
 **Clean up this disc's staging working files, per disc, once its own verification
 above is done — this is not optional, and it has no other trigger point anywhere else
 in this pipeline.** A real installation went from 2026-08-28 to 2026-09-11 without a
@@ -868,14 +891,18 @@ second, and both are required.
 
 **Closing message**: once eject is done, run
 `python ${CLAUDE_SKILL_DIR}/scripts/run_timer.py elapsed --staging-path
-<staging.path>` and report its `"formatted"` value (e.g. `"2h 14m 03s"`) as part of
-your closing comments to the user — it also deletes its own working file, same
-reasoning as `rip_processes.json` not persisting between runs. This is a closing
+<staging.path>` to get the `"formatted"` runtime, then
+`python ${CLAUDE_SKILL_DIR}/scripts/run_report.py render --staging-path
+<staging.path> --elapsed "<that formatted value>"` and relay its `"report"` string to
+the user **verbatim, as the closing message itself** — this is the formalized
+runtime/per-disc/hiccups summary (see `references/run-report.md`), not something to
+re-summarize in your own words on top of. Both calls delete their own working file,
+same reasoning as `rip_processes.json` not persisting between runs. This is a closing
 chat message, not a pipeline action, so it doesn't conflict with eject being the
 literal last pipeline action above. If Stage 11 ran and anything was explicitly
-deferred to staging (the user's own choice, already discussed live at that point), a
-brief one-line recap here is enough — it's a confirmation for the record at this
-point, not the first time the user is hearing about it.
+deferred to staging (the user's own choice, already discussed live at that point),
+that's already reflected in the rendered report's per-disc "needs review" entries —
+no separate recap needed on top of it.
 
 ## Between batches — start a new session rather than chaining sets together
 
