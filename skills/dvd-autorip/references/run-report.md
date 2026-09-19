@@ -54,35 +54,42 @@ very end.
 ## What the rendered report looks like
 
 ```
-=== DVD Autorip -- Run Summary ===
-Runtime: 2h 14m 03s
-Discs processed: 2
+## DVD Autorip -- Run Summary
 
---- ANGEL_S5D5 (drive 1) ---
-Placed (2):
-  - Angel - S05E16 - Shells.mkv
-  - Angel - S05E17 - Underneath.mkv
-Bonus content: none
-Excluded pre-rip (1):
-  - title 3: concat/Play-All
-Needs review: none
+**Runtime:** 2h 14m 03s
+**Discs processed:** 2
 
---- ANGEL_S5D6 (drive 0) ---
-Placed (1):
-  - Angel - S05E18 - Origin.mkv
-Bonus content (1):
-  - Angel Unbound.mkv [featurette] -- kept
-Excluded pre-rip: none
-Needs review (1):
-  - Title 5 duration mismatch vs disc menu claim -- deferred
+### ANGEL_S5D5 (drive 1)
 
-=== Issues (1) ===
-[warning] Stage 1: Jellyfin auth required header fallback (X-Emby-Token) after initial 401
+| Category | Item | Detail |
+|---|---|---|
+| Placed | Angel - S05E16 - Shells.mkv | -- |
+| Placed | Angel - S05E17 - Underneath.mkv | -- |
+| Excluded pre-rip | title 3 | concat/Play-All |
+
+### ANGEL_S5D6 (drive 0)
+
+| Category | Item | Detail |
+|---|---|---|
+| Placed | Angel - S05E18 - Origin.mkv | -- |
+| Bonus | Angel Unbound.mkv [featurette] | kept |
+| Needs review | Title 5 duration mismatch vs disc menu claim | deferred |
+
+### Issues (1)
+
+| Severity | Stage | Message |
+|---|---|---|
+| warning | Stage 1 | Jellyfin auth required header fallback (X-Emby-Token) after initial 401 |
 ```
 
-A run with nothing to flag renders `"No hiccups or errors this run."` instead of an
-`Issues` section — the absence of that section is itself the signal, not something
-to call out further.
+Rendered as GitHub-flavored markdown, which the chat closing message renders as real
+tables, not literal pipe characters — relay the `"report"` string as-is, don't
+re-wrap it in its own code block. A disc with nothing recorded at all renders
+`"Nothing recorded for this disc."` instead of an empty table; a run with no issues
+renders `"No hiccups or errors this run."` instead of an `Issues` section — either
+absence is itself the signal, not something to call out further. Any `|` or newline
+inside a recorded value (a filename, a message) is escaped/flattened before it goes
+into a table cell, so it can't break the table's structure.
 
 ## Why per-disc, not per-title
 
