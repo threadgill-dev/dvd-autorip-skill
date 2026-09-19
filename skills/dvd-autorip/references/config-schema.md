@@ -168,6 +168,31 @@ then behaves exactly as it did before this feature existed. See
 discipline that gates when a hit is trusted enough to skip live identification for a
 title.
 
+### `library_duplicates.handling` (string, optional, default `"ask"`)
+One of `"skip"`, `"skip_unless_damaged"`, `"replace"`, or `"ask"` — what to do when a
+movie confirmed *before ripping* (currently: a Stage 3.5/6 TheDiscDB hit, `"MainMovie"`
+type) turns out to already exist in the Jellyfin library. Only checked when
+`media_server.type` is `"jellyfin"` — there's no library to check against under
+`"none"`, and this skill doesn't talk to Plex's API (see `media_server.type` above).
+Movies only for now; TV episodes aren't checked (matching an existing episode needs
+season/episode against an already-owned series, a different and harder problem than a
+single TMDB id — not yet implemented). Missing this field entirely is the same as
+`"ask"` — the safest default, same reasoning as `bonus_content.handling`.
+- `"skip"` — don't rip the title at all; excluded from the rip the same way a
+  confirmed concat/duplicate title is.
+- `"skip_unless_damaged"` — same as `"skip"`, unless the existing library item's
+  filename carries the `[salvaged-incomplete]` tag
+  (`identification-technique.md`'s damaged-disc salvage procedure) — a lossy,
+  incomplete recovery rip isn't a real duplicate worth keeping over a fresh one, so
+  this ripped normally instead of being excluded.
+- `"replace"` — rip normally regardless of what's already there.
+- `"ask"` — present what was found (title, existing path, whether it's tagged
+  salvaged) and let the user decide, once per title.
+See `references/discdb-integration.md`'s "Library duplicate check" section for
+exactly where this plugs into Stage 4, and why the obvious Jellyfin query
+(`AnyProviderIdEquals`) doesn't actually work and had to be verified against a real
+server instead of assumed.
+
 ## Validating
 
 `scripts/setup/validate_config.py <path-to-config.local.json>` checks the file exists,

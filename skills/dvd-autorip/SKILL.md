@@ -69,8 +69,9 @@ all of it in context up front:
   installing something, when to hard stop, when to remember a decline so future runs
   stop asking
 - `references/discdb-integration.md` — Stage 3.5's TheDiscDB pre-check in full: the
-  ContentHash algorithm, the query, and the cross-check discipline that gates when a
-  hit is trusted enough to skip Stage 6/7 for a title
+  ContentHash algorithm, the query, the cross-check discipline that gates when a hit
+  is trusted enough to skip Stage 6/7 for a title, and Stage 4 check 5's pre-rip
+  Jellyfin library duplicate check for a confirmed movie
 
 ## Running the bundled scripts
 
@@ -119,7 +120,7 @@ it isn't spelled out again.
 `platform/windows` or `platform/linux`): `check_dependencies.py`,
 `setup/validate_config.py`, `setup/check_directory_scoping.py`, `detect_exclusions.py`,
 `jellyfin_api.py`, `file_bonus_content.py`, `discdb_lookup.py`, `discdb_crosscheck.py`,
-and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
+`check_library_duplicate.py`, and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
 parsing, HTTP calls, filesystem moves, and reading a mounted disc's `VIDEO_TS` folder
 work identically everywhere Python 3.8+ runs) so there's exactly one version, invoked
 the same way on every OS:
@@ -551,6 +552,29 @@ enumeration — and applies both checks below in one pass) and check its result,
      exclusion list, not a new mechanism. Under `"keep"`/`"ask"`, a confirmed `"Extra"`
      title still rips normally (same reasoning as check 3 above) — the binding is used
      later, at Stage 8, to skip Stage 7 for it, not to exclude it here.
+5. **Only when check 4's `"bound"` list has a MakeMKV title id mapped to
+   `"MainMovie"`, and only when `media_server.type` is `"jellyfin"`** — check whether
+   this movie is already in the library before ripping it:
+   `python ${CLAUDE_SKILL_DIR}/scripts/check_library_duplicate.py <config path>
+   --tmdb-id <the bound title's TMDB id, from discdb_lookup.py's media_item.tmdb_id>`.
+   **When `"found": false`**, nothing to do — proceed as normal. **When `"found":
+   true`**, apply `config.local.json`'s `library_duplicates.handling`
+   (`references/config-schema.md` has the full field; `references/discdb-integration.md`
+   has why the obvious Jellyfin query for this doesn't actually work and had to be
+   verified against a real server):
+   - `"skip"` — exclude this title from the rip, same exclusion-list mechanism as
+     checks 1/2/4 above.
+   - `"skip_unless_damaged"` — same as `"skip"`, **unless** the result's
+     `item.is_salvaged` is `true` (the existing copy is a known-lossy recovery rip,
+     not a real duplicate worth keeping over a fresh one) — in that case, don't
+     exclude, rip normally.
+   - `"replace"` — don't exclude, rip normally.
+   - `"ask"` — tell the user what was found (`item.name`, `item.path`, whether it's
+     salvaged) and let them choose skip-or-proceed for this title, once. This has no
+     mechanized default — a real per-title decision, same spirit as Stage 10/11.
+   This check only ever applies to a confirmed `"MainMovie"` title — TV episodes
+   aren't checked (matching an existing episode needs season/episode against an
+   already-owned series, not a single TMDB id lookup; not yet implemented).
 
 **With more than one drive, issue these `detect_exclusions.py` calls as separate
 `Bash`/`PowerShell` tool calls bundled together in one response, not one at a

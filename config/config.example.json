@@ -47,5 +47,9 @@
 
   "discdb": {
     "enabled": true
+  },
+
+  "library_duplicates": {
+    "handling": "ask"
   }
 }
