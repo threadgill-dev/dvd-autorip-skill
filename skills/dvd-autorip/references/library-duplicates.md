@@ -73,13 +73,14 @@ there:
 - `"skip"`, or `"skip_unless_damaged"` with `is_salvaged: false` — **discard the
   freshly-ripped file from staging** instead of placing it; do not move it into
   `{library.movies_path}`.
-- `"skip_unless_damaged"` with `is_salvaged: true`, or `"replace"` — **place the
-  new file and delete the existing library file it's replacing first** (its path
-  came back in the duplicate-check result) — the config choice itself is the
-  standing authorization for this, same precedent as `bonus_content.handling:
-  "discard"` already deleting permanently without re-confirming each time.
-  Deleting the old file before placing the new one avoids leaving two library
-  entries for the same movie for Stage 8's `Library/Refresh` to find.
+- `"skip_unless_damaged"` with `is_salvaged: true`, or `"replace"` — **place with
+  `place_file.py`'s `--replace` flag** (destination: `item.path` from the
+  duplicate-check result) — the config choice itself is the standing authorization
+  for the deletion that flag performs, same precedent as `bonus_content.handling:
+  "discard"` already deleting permanently without re-confirming each time. Without
+  `--replace`, `place_file.py` would refuse the collision outright (see
+  `../references/gotchas.md`'s "A hand-built file move silently overwrote an
+  already-owned movie" — this is exactly the case that incident fixed).
 - `"ask"` — tell the user what was found and let them choose keep-existing
   (discard the new rip) or replace (delete the old file, place the new one),
   once, before this title's placement.

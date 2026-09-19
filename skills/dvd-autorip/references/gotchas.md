@@ -994,3 +994,34 @@ this is just the verified facts:
   double-encoded) — don't hand-encode a query value yourself before passing it to
   the script, it isn't necessary anymore and a manually-encoded value still passes
   through correctly either way.
+
+## A hand-built file move silently overwrote an already-owned movie
+
+Stage 8 (place + scan) used to be pure prose — "move into `{library.movies_path}`
+per the naming templates" — with no dedicated script, so the actual move was a
+`Move-Item`/`mv` command reconstructed by hand at placement time, every disc. A
+real run ripped a movie already in the library (the disc missed TheDiscDB's
+pre-rip check, so Stage 3.5/4 check 5 never ran; Stage 7 identified it live, which
+should have routed it through Stage 8's own post-rip duplicate check instead) and
+the file that had been sitting in the library since 2020 was silently replaced —
+confirmed after the fact by comparing filesystem timestamps (the sequels in the
+same trilogy still showed their original 2020 dates; the movie in question now
+showed today's).
+
+The real weakness wasn't the duplicate-check *logic* — it was that nothing
+downstream of that logic actually enforced its decision. Even a correct
+`library_duplicates.handling` resolution ("discard the new rip, keep the
+existing file") depended entirely on the hand-built move command that placement
+turn happening to respect it; a plain move to a path that already has something
+at it doesn't ask first, on the shells this pipeline runs on. There was no
+independent safeguard at the filesystem level at all.
+
+Fixed by adding `scripts/place_file.py`: every placement, movies and TV episodes
+alike, now goes through it instead of a hand-built move, and it refuses a
+destination collision outright unless called with `--replace` — a flag only ever
+passed when the duplicate-check logic already decided to replace this specific
+title. This makes the safety property independent of whatever reasoning happened
+upstream: even if a future duplicate check has its own bug, or a completely
+different unanticipated collision occurs, `place_file.py` stops and reports it
+instead of silently overwriting. See `SKILL.md` Stage 8 and
+`references/library-duplicates.md`.

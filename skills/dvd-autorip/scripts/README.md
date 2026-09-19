@@ -37,6 +37,11 @@ for browsing the repo.
   fallback (`Authorization: MediaBrowser Token=...` → `X-Emby-Token`) and hard-stops
   on `Items/RemoteSearch/Episode`, which doesn't exist. Used for every Jellyfin call
   in the skill; not invoked at all under `media_server.type: "none"`.
+- **`place_file.py`** — moves a ripped file from staging into the library. Refuses a
+  destination collision outright unless called with `--replace` — added after a
+  hand-built move silently overwrote an already-owned movie in a real run (see
+  `../references/gotchas.md`). Every placement goes through this now, movies and TV
+  episodes alike. Stage 8.
 - **`run_timer.py`** — tracks total wall-clock run time across a batch for Stage 13's
   closing message.
 

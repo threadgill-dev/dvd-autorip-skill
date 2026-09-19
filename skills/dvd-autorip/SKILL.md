@@ -121,7 +121,7 @@ it isn't spelled out again.
 `platform/windows` or `platform/linux`): `check_dependencies.py`,
 `setup/validate_config.py`, `setup/check_directory_scoping.py`, `detect_exclusions.py`,
 `jellyfin_api.py`, `file_bonus_content.py`, `discdb_lookup.py`, `discdb_crosscheck.py`,
-`check_library_duplicate.py`, and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
+`check_library_duplicate.py`, `place_file.py`, and `run_timer.py`. These have no OS-specific behavior (MakeMKV robot-mode
 parsing, HTTP calls, filesystem moves, and reading a mounted disc's `VIDEO_TS` folder
 work identically everywhere Python 3.8+ runs) so there's exactly one version, invoked
 the same way on every OS:
@@ -763,21 +763,30 @@ below. **When `"found": true`**, apply `library_duplicates.handling`
 differ from Stage 4 check 5's):
 - `"skip"`, or `"skip_unless_damaged"` with `item.is_salvaged: false` — **discard
   the freshly-ripped file from staging** instead of placing it.
-- `"skip_unless_damaged"` with `item.is_salvaged: true`, or `"replace"` — **delete
-  the existing library file at `item.path` first**, then place the new one below —
-  the config choice itself is the standing authorization for this deletion, same
-  precedent as `bonus_content.handling: "discard"` already deleting permanently
-  without re-confirming each time.
+- `"skip_unless_damaged"` with `item.is_salvaged: true`, or `"replace"` — place
+  below **with `place_file.py`'s `--replace` flag** — the config choice itself is
+  the standing authorization for the deletion that flag performs, same precedent
+  as `bonus_content.handling: "discard"` already deleting permanently without
+  re-confirming each time.
 - `"ask"` — tell the user what was found and let them choose keep-existing (discard
-  the new rip) or replace (delete the old file, place the new one), once, before
-  this title's placement.
+  the new rip) or replace (place with `--replace`), once, before this title's
+  placement.
 
-High-confidence main-content items — Stage 7-identified (that survived the check
-above) or Stage 3.5/6/7-confirmed alike — move into `{library.movies_path}` or
-`{library.shows_path}\{Show}\Season N\` per the naming templates in config, using
-whichever source (live identification or a `discdb_crosscheck.py` binding)
-established the title/season/episode/TMDB id; nothing else about this stage's
-mechanics changes based on which source it was.
+**Every placement — movies and TV episodes alike, every source (Stage 7-identified,
+Stage 3.5/6/7-confirmed) — goes through
+`python ${CLAUDE_SKILL_DIR}/scripts/place_file.py <source path> <destination path>
+[--replace]`, never a hand-built `Move-Item`/`mv`.** Destination is
+`{library.movies_path}\{filename}` or
+`{library.shows_path}\{Show}\Season N\{filename}` per the naming templates in
+config, using whichever source established the title/season/episode. **Only pass
+`--replace` when the duplicate check above already resolved to replace this exact
+title** — everywhere else, call it without the flag. If a call without `--replace`
+ever reports `"error_type": "collision"`, that means something already exists at
+the destination that the duplicate check didn't account for — **stop and surface
+it to the user rather than retrying with `--replace`**; forcing it through would
+recreate exactly the silent-overwrite failure this script exists to prevent (a
+real run did this once, by hand, before `place_file.py` existed — see
+`references/gotchas.md`).
 **When
 `media_server.type` is `"jellyfin"`**, follow with
 `python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> POST Library/Refresh`
