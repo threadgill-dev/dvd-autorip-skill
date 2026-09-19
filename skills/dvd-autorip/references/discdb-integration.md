@@ -220,63 +220,13 @@ already documents for bonus content generally: it can only become a real Jellyfi
 Special Feature (`"keep"`) or get a chance at manual review (`"ask"`) if it was
 actually ripped.
 
-## Library duplicate check (Stage 4 check 5, movies only)
+## Library duplicate check
 
-A confirmed `"MainMovie"` title is the one case in this whole pipeline where a
-title's real-world identity (a TMDB id) is known **before** anything gets ripped —
-Stage 7's own identification needs the ripped file as evidence, so it can never run
-early enough to save the rip itself. That makes this the only point where it's
-worth asking "do we already have this" before spending the time and disk space to
-rip it again.
-
-**The obvious Jellyfin query doesn't work — confirmed live, not assumed.**
-`GET /Items?AnyProviderIdEquals=tmdb.{id}` is what a standard Jellyfin API search
-would reach for, but tested directly against this project's real server (Jellyfin
-12.1.0): the parameter is silently ignored, and the call returns the **entire
-unfiltered movie library** instead of erroring or filtering — confirmed by
-comparing the "filtered" result's item count and order against a genuinely
-unfiltered baseline query (both returned the same 357 movies in the same order). A
-naive "any results = duplicate" check built on this would have reported every
-single movie in the library as a duplicate, always. Confirmed via the server's own
-live OpenAPI spec (`GET /api-docs/openapi.json`) that no id-equals filter or
-provider-id lookup endpoint exists anywhere in the real API surface for this
-version — `/Items`'s real parameters include `hasTmdbId` (existence only, not a
-specific value) and nothing else provider-id-shaped, and no path anywhere in the
-spec is a dedicated provider-id lookup either.
-
-`scripts/check_library_duplicate.py` does the only approach that actually works:
-fetch the movie list with `Fields=ProviderIds,Path` and match the target TMDB id
-client-side. It imports `jellyfin_api.py`'s own `load_config`/`do_request`
-directly rather than reimplementing the auth-header-fallback logic — same
-mechanism as every other Jellyfin call in this skill, just a different query
-shape than Stage 12's existing check (which looks up one already-known item by
-its own internal Jellyfin id to verify a write, not the whole library by an
-external id).
-
-```
-python check_library_duplicate.py <config path> --tmdb-id 12345
-```
-Returns `{"ok": true, "found": false}` or `{"ok": true, "found": true, "item":
-{"id": ..., "name": ..., "path": ..., "is_salvaged": ...}}`. `is_salvaged` is
-`true` iff the existing item's `Path` contains the `[salvaged-incomplete]`
-filename tag — the same marker `identification-technique.md`'s damaged-disc
-salvage procedure already uses for a lossy, incomplete recovery rip. Verified
-live against three real cases in the library this was built against: a normal
-owned movie (`found: true`, `is_salvaged: false`), a movie not owned at all
-(`found: false`), and the one real salvaged title in that library (`found: true`,
-`is_salvaged: true`).
-
-`config.local.json`'s `library_duplicates.handling` (see `config-schema.md`)
-decides what happens on a `found: true` result — `"skip"`, `"skip_unless_damaged"`
-(rip normally instead of skipping when `is_salvaged` is `true`), `"replace"` (rip
-normally, no check of the flag), or `"ask"` (present what was found and let the
-user decide per title). Only `"skip"` and a non-salvaged `"skip_unless_damaged"`
-hit feed Stage 4's exclusion list — `"replace"` and `"ask"`-proceed just let the
-title rip through the pipeline unaffected, same as if no duplicate had been found.
-
-TV episodes aren't checked — matching an existing episode needs season/episode
-numbering against an already-owned series, not a single TMDB id equality check,
-and that's a genuinely different (harder) problem left for later.
+Stage 3.5/4 check 5 uses this disc's discdb confirmation to check the Jellyfin
+library *before* ripping a movie — see `references/library-duplicates.md` for the
+full mechanism (it's not discdb-specific: the same check also runs from Stage 8 for
+a movie Stage 7 identified live, with different consequences since the file's
+already ripped by then).
 
 ## Coverage and scope notes
 

@@ -69,9 +69,10 @@ all of it in context up front:
   installing something, when to hard stop, when to remember a decline so future runs
   stop asking
 - `references/discdb-integration.md` — Stage 3.5's TheDiscDB pre-check in full: the
-  ContentHash algorithm, the query, the cross-check discipline that gates when a hit
-  is trusted enough to skip Stage 6/7 for a title, and Stage 4 check 5's pre-rip
-  Jellyfin library duplicate check for a confirmed movie
+  ContentHash algorithm, the query, and the cross-check discipline that gates when a
+  hit is trusted enough to skip Stage 6/7 for a title
+- `references/library-duplicates.md` — the Jellyfin library duplicate check for a
+  confirmed movie, at both call sites (Stage 4 check 5 before ripping, Stage 8 after)
 
 ## Running the bundled scripts
 
@@ -559,9 +560,10 @@ enumeration — and applies both checks below in one pass) and check its result,
    --tmdb-id <the bound title's TMDB id, from discdb_lookup.py's media_item.tmdb_id>`.
    **When `"found": false`**, nothing to do — proceed as normal. **When `"found":
    true`**, apply `config.local.json`'s `library_duplicates.handling`
-   (`references/config-schema.md` has the full field; `references/discdb-integration.md`
+   (`references/config-schema.md` has the full field; `references/library-duplicates.md`
    has why the obvious Jellyfin query for this doesn't actually work and had to be
-   verified against a real server):
+   verified against a real server, plus Stage 8's second call site for a movie Stage
+   7 identifies live instead of this one):
    - `"skip"` — exclude this title from the rip, same exclusion-list mechanism as
      checks 1/2/4 above.
    - `"skip_unless_damaged"` — same as `"skip"`, **unless** the result's
@@ -572,8 +574,11 @@ enumeration — and applies both checks below in one pass) and check its result,
    - `"ask"` — tell the user what was found (`item.name`, `item.path`, whether it's
      salvaged) and let them choose skip-or-proceed for this title, once. This has no
      mechanized default — a real per-title decision, same spirit as Stage 10/11.
-   This check only ever applies to a confirmed `"MainMovie"` title — TV episodes
-   aren't checked (matching an existing episode needs season/episode against an
+   This is the check's *pre-rip* call site — only ever applies to a confirmed
+   `"MainMovie"` title, and only ever runs once per title (a title Stage 3.5/4
+   check 4 resolved never reaches Stage 7 at all, so it never hits Stage 8's
+   separate call site for the same reason). TV episodes aren't checked at either
+   call site (matching an existing episode needs season/episode against an
    already-owned series, not a single TMDB id lookup; not yet implemented).
 
 **With more than one drive, issue these `detect_exclusions.py` calls as separate
@@ -747,11 +752,32 @@ main-content encodes.
 
 ## Stage 8 — Place + scan
 
-High-confidence main-content items — Stage 7-identified or Stage 3.5/6/7-confirmed
-alike — move into `{library.movies_path}` or `{library.shows_path}\{Show}\Season N\`
-per the naming templates in config, using whichever source (live identification or a
-`discdb_crosscheck.py` binding) established the title/season/episode/TMDB id;
-nothing else about this stage's mechanics changes based on which source it was.
+**For a movie Stage 7 identified live (not a Stage 3.5/4 check 5 title — that one
+already resolved this before the rip and never reaches here), and only when
+`media_server.type` is `"jellyfin"`** — this is the check's *second* call site,
+after ripping instead of before: check the library before placing it —
+`python ${CLAUDE_SKILL_DIR}/scripts/check_library_duplicate.py <config path>
+--tmdb-id <Stage 7's confirmed TMDB id>`. **When `"found": false`**, place normally,
+below. **When `"found": true`**, apply `library_duplicates.handling`
+(`references/library-duplicates.md` has the full mechanism and why its actions
+differ from Stage 4 check 5's):
+- `"skip"`, or `"skip_unless_damaged"` with `item.is_salvaged: false` — **discard
+  the freshly-ripped file from staging** instead of placing it.
+- `"skip_unless_damaged"` with `item.is_salvaged: true`, or `"replace"` — **delete
+  the existing library file at `item.path` first**, then place the new one below —
+  the config choice itself is the standing authorization for this deletion, same
+  precedent as `bonus_content.handling: "discard"` already deleting permanently
+  without re-confirming each time.
+- `"ask"` — tell the user what was found and let them choose keep-existing (discard
+  the new rip) or replace (delete the old file, place the new one), once, before
+  this title's placement.
+
+High-confidence main-content items — Stage 7-identified (that survived the check
+above) or Stage 3.5/6/7-confirmed alike — move into `{library.movies_path}` or
+`{library.shows_path}\{Show}\Season N\` per the naming templates in config, using
+whichever source (live identification or a `discdb_crosscheck.py` binding)
+established the title/season/episode/TMDB id; nothing else about this stage's
+mechanics changes based on which source it was.
 **When
 `media_server.type` is `"jellyfin"`**, follow with
 `python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> POST Library/Refresh`

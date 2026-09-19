@@ -13,11 +13,12 @@ for browsing the repo.
   PowerShell/bash, Python, and (optional) Tesseract. PATH-first, with fallback
   install-location checks; never a single hardcoded path. Stage 1.
 - **`check_library_duplicate.py`** — checks whether a confirmed movie (TMDB id) is
-  already in the Jellyfin library before ripping it, by fetching the movie list and
-  matching client-side (the obvious server-side filter, `AnyProviderIdEquals`,
-  doesn't work on this project's real server — confirmed live). Imports
-  `jellyfin_api.py` directly rather than reimplementing its HTTP logic. Stage 4
-  check 5, movies only.
+  already in the Jellyfin library, by fetching the movie list and matching
+  client-side (the obvious server-side filter, `AnyProviderIdEquals`, doesn't work
+  on this project's real server — confirmed live). Imports `jellyfin_api.py`
+  directly rather than reimplementing its HTTP logic. Two call sites: Stage 4 check
+  5 (before ripping, a discdb-confirmed movie) and Stage 8 (after ripping, a Stage
+  7-identified movie) — movies only at either.
 - **`detect_exclusions.py`** — pre-rip exclusion detection from MakeMKV's own disc
   info scan: concat/Play-All titles and duplicate-source titles, before wasting time
   ripping either. Stage 4.
