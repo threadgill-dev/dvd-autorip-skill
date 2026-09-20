@@ -71,6 +71,11 @@ all of it in context up front:
 - `references/run-report.md` — the formalized closing report: what gets recorded
   where (Stage 3 start, Stage 12 per-disc, `add-issue` anywhere), and exactly what
   Stage 13 renders and relays to the user
+- `references/discdb-integration.md` — Stage 3.5's TheDiscDB pre-check in full: the
+  ContentHash algorithm, the query, and the cross-check discipline that gates when a
+  hit is trusted enough to skip Stage 6/7 for a title
+- `references/library-duplicates.md` — the Jellyfin library duplicate check for a
+  confirmed movie, at both call sites (Stage 4 check 5 before ripping, Stage 8 after)
 
 ## Running the bundled scripts
 
@@ -118,9 +123,12 @@ it isn't spelled out again.
 **Cross-platform Python** — `scripts/*.py` directly under `scripts/` (not under
 `platform/windows` or `platform/linux`): `check_dependencies.py`,
 `setup/validate_config.py`, `setup/check_directory_scoping.py`, `detect_exclusions.py`,
-`jellyfin_api.py`, `file_bonus_content.py`, `run_timer.py`, and `run_report.py`. These have no OS-specific behavior (MakeMKV robot-mode
-parsing, HTTP calls, and filesystem moves work identically everywhere Python 3.8+
-runs) so there's exactly one version, invoked the same way on every OS:
+`jellyfin_api.py`, `file_bonus_content.py`, `discdb_lookup.py`, `discdb_crosscheck.py`,
+`check_library_duplicate.py`, `place_file.py`, `run_timer.py`, and `run_report.py`.
+These have no OS-specific behavior (MakeMKV robot-mode parsing, HTTP calls,
+filesystem moves, and reading a mounted disc's `VIDEO_TS` folder work identically
+everywhere Python 3.8+ runs) so there's exactly one version, invoked the same way
+on every OS:
 
 ```
 python "${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py" <config path> GET System/Info
@@ -446,6 +454,31 @@ trying to remember it for the closing message — the same "don't rely on rememb
 something across a multi-compaction session" reasoning as the timer above, and the
 same discipline Stage 11 already applies to needs-review items.
 
+## Stage 3.5 — TheDiscDB pre-check (optional, per drive, before the rip)
+
+**Skip this stage entirely when `config.local.json`'s `discdb.enabled` is `false`** —
+a user who doesn't want this skill making any third-party network call at all, even a
+read-only one, turns it off once and every disc falls straight through to Stage 4 as
+if this stage didn't exist. Default is `true`.
+
+For each drive with `mediaLoaded: true`:
+`python ${CLAUDE_SKILL_DIR}/scripts/discdb_lookup.py --video-ts-path
+"<driveLetter>\VIDEO_TS"` (Linux/Mac: the mount point's `VIDEO_TS` subfolder). This
+only needs the disc mounted — no MakeMKV scan yet — so it belongs here, ahead of
+Stage 4's own MakeMKV-based checks.
+
+**A miss (`"matched": false`) or a failure (`"ok": false` — network down, timeout,
+unreadable disc) is a normal, silent, common outcome — proceed straight to Stage 4
+exactly as before this stage existed, with nothing to report to the user.** TheDiscDB's
+catalog is nowhere near exhaustive, especially for DVDs specifically. Read
+`references/discdb-integration.md` now if you haven't already this session — full
+detail on the ContentHash algorithm, the query, and, most importantly, **the
+cross-check discipline that gates whether a hit is trusted enough to skip Stage 6/7
+for a title** (an exact disc-level hash match does not by itself guarantee MakeMKV's
+title numbering matches TheDiscDB's recorded index for every title — never skip that
+cross-check). Carry a `"matched": true` result forward into Stage 4 step 1 below and
+Stage 6/7/8 further down; don't discard it.
+
 ## Stage 4 — Rip
 
 **Step 1, before calling `launch_rip` for any drive — scan the title list and decide
@@ -517,6 +550,55 @@ enumeration — and applies both checks below in one pass) and check its result,
      single-surviving-file shape makes the waste asymmetric, and because
      `"discard"` guarantees those titles would never survive placement regardless of
      whether they're ripped.
+4. **Only when Stage 3.5 returned a `"matched": true` result for this drive** — run
+   `python ${CLAUDE_SKILL_DIR}/scripts/discdb_crosscheck.py --discdb-json
+   '<discdb_lookup.py's stdout>' --makemkv-json '<this script's own stdout>'` to bind
+   each `discdb_lookup.py` title to a real MakeMKV title by nearest-duration match
+   (**not by assuming the same index** — confirmed live against a real disc that this
+   fails badly: MakeMKV found 18 real titles where TheDiscDB's mapping had 33 entries,
+   and same-index comparison confirmed only 3 of 33 where nearest-duration binding
+   correctly confirmed all 18; full detail in `references/discdb-integration.md`). Run
+   this unconditionally on a hit, regardless of `bonus_content.handling` — Stage 6/7
+   further down need the `"bound"` result to skip live identification for confirmed
+   `MainMovie`/`Episode` titles no matter how bonus content is configured. **A title
+   in `"unbound_makemkv_ids"` gets no shortcut anywhere in this pipeline** — treat it
+   exactly as if Stage 3.5 had missed entirely.
+   - **Only when `bonus_content.handling` is `"discard"`**: a MakeMKV title id in the
+     `"bound"` list mapped to `"Extra"` is excluded from the rip itself, same as a
+     confirmed concat/duplicate title above — this is a new *source* feeding the same
+     exclusion list, not a new mechanism. Under `"keep"`/`"ask"`, a confirmed `"Extra"`
+     title still rips normally (same reasoning as check 3 above) — the binding is used
+     later, at Stage 8, to skip Stage 7 for it, not to exclude it here.
+5. **Only when check 4's `"bound"` list has a MakeMKV title id mapped to
+   `"MainMovie"`, and only when `media_server.type` is `"jellyfin"`** — check whether
+   this movie is already in the library before ripping it:
+   `python ${CLAUDE_SKILL_DIR}/scripts/check_library_duplicate.py <config path>
+   --tmdb-id <media_item.tmdb_id> --title <media_item.title> --year <media_item.year>`
+   (all three from `discdb_lookup.py`'s `media_item` — always pass `--title`/`--year`,
+   not just `--tmdb-id`, so a pre-existing library entry with a missing/wrong TMDB id
+   still gets caught; see `references/library-duplicates.md`).
+   **When `"found": false`**, nothing to do — proceed as normal. **When `"found":
+   true`**, apply `config.local.json`'s `library_duplicates.handling`
+   (`references/config-schema.md` has the full field; `references/library-duplicates.md`
+   has why the obvious Jellyfin query for this doesn't actually work and had to be
+   verified against a real server, plus Stage 8's second call site for a movie Stage
+   7 identifies live instead of this one):
+   - `"skip"` — exclude this title from the rip, same exclusion-list mechanism as
+     checks 1/2/4 above.
+   - `"skip_unless_damaged"` — same as `"skip"`, **unless** the result's
+     `item.is_salvaged` is `true` (the existing copy is a known-lossy recovery rip,
+     not a real duplicate worth keeping over a fresh one) — in that case, don't
+     exclude, rip normally.
+   - `"replace"` — don't exclude, rip normally.
+   - `"ask"` — tell the user what was found (`item.name`, `item.path`, whether it's
+     salvaged) and let them choose skip-or-proceed for this title, once. This has no
+     mechanized default — a real per-title decision, same spirit as Stage 10/11.
+   This is the check's *pre-rip* call site — only ever applies to a confirmed
+   `"MainMovie"` title, and only ever runs once per title (a title Stage 3.5/4
+   check 4 resolved never reaches Stage 7 at all, so it never hits Stage 8's
+   separate call site for the same reason). TV episodes aren't checked at either
+   call site (matching an existing episode needs season/episode against an
+   already-owned series, not a single TMDB id lookup; not yet implemented).
 
 **With more than one drive, issue these `detect_exclusions.py` calls as separate
 `Bash`/`PowerShell` tool calls bundled together in one response, not one at a
@@ -607,11 +689,25 @@ as literal on-screen text, which can save the rest of Stage 7 entirely for TV di
 
 ## Stage 6 — Classify movie vs. TV disc
 
+**Skip this for any MakeMKV title id appearing in Stage 4 check 4's
+`discdb_crosscheck.py` `"bound"` list with type `"MainMovie"` or `"Episode"`** — its
+content type is already known, not a heuristic guess. Classify every other title on
+the disc as before (including any bound `"Extra"` title — Stage 6's movie/TV
+classification doesn't apply to those either way):
+
 Heuristic, not a hard rule: 1 title >50min → movie disc. Multiple titles in the
 18-45min range → TV season disc. A disc that doesn't cleanly fit either shape is its
 own outcome — "investigate further" — not a forced guess in either direction.
 
 ## Stage 7 — Identify
+
+**Skip this entirely for any title bound per Stage 6 above, and for any bound
+`"Extra"` title (regardless of `bonus_content.handling`)** — go straight to Stage 8
+using the binding's title/season/episode/TMDB id (for confirmed main content) or
+subtype (for confirmed bonus content), same as if Stage 7 had established it live.
+Everything below in this stage is for titles Stage 3.5 missed, or that
+`discdb_crosscheck.py` left in `"unbound_makemkv_ids"` — the common case today, and
+the only case at all when `discdb.enabled` is `false`.
 
 Read `references/identification-technique.md` now if you haven't already this
 session — it has the full adaptive procedure (subtitle-type branching, when to OCR,
@@ -675,8 +771,44 @@ main-content encodes.
 
 ## Stage 8 — Place + scan
 
-High-confidence main-content items: move into `{library.movies_path}` or
-`{library.shows_path}\{Show}\Season N\` per the naming templates in config. **When
+**For a movie Stage 7 identified live (not a Stage 3.5/4 check 5 title — that one
+already resolved this before the rip and never reaches here), and only when
+`media_server.type` is `"jellyfin"`** — this is the check's *second* call site,
+after ripping instead of before: check the library before placing it —
+`python ${CLAUDE_SKILL_DIR}/scripts/check_library_duplicate.py <config path>
+--tmdb-id <Stage 7's confirmed TMDB id> --title <confirmed title> --year <confirmed
+year>` (same reasoning as Stage 4 check 5 — always pass title/year, not just the
+TMDB id). **When `"found": false`**, place normally,
+below. **When `"found": true`**, apply `library_duplicates.handling`
+(`references/library-duplicates.md` has the full mechanism and why its actions
+differ from Stage 4 check 5's):
+- `"skip"`, or `"skip_unless_damaged"` with `item.is_salvaged: false` — **discard
+  the freshly-ripped file from staging** instead of placing it.
+- `"skip_unless_damaged"` with `item.is_salvaged: true`, or `"replace"` — place
+  below **with `place_file.py`'s `--replace` flag** — the config choice itself is
+  the standing authorization for the deletion that flag performs, same precedent
+  as `bonus_content.handling: "discard"` already deleting permanently without
+  re-confirming each time.
+- `"ask"` — tell the user what was found and let them choose keep-existing (discard
+  the new rip) or replace (place with `--replace`), once, before this title's
+  placement.
+
+**Every placement — movies and TV episodes alike, every source (Stage 7-identified,
+Stage 3.5/6/7-confirmed) — goes through
+`python ${CLAUDE_SKILL_DIR}/scripts/place_file.py <source path> <destination path>
+[--replace]`, never a hand-built `Move-Item`/`mv`.** Destination is
+`{library.movies_path}\{filename}` or
+`{library.shows_path}\{Show}\Season N\{filename}` per the naming templates in
+config, using whichever source established the title/season/episode. **Only pass
+`--replace` when the duplicate check above already resolved to replace this exact
+title** — everywhere else, call it without the flag. If a call without `--replace`
+ever reports `"error_type": "collision"`, that means something already exists at
+the destination that the duplicate check didn't account for — **stop and surface
+it to the user rather than retrying with `--replace`**; forcing it through would
+recreate exactly the silent-overwrite failure this script exists to prevent (a
+real run did this once, by hand, before `place_file.py` existed — see
+`references/gotchas.md`).
+**When
 `media_server.type` is `"jellyfin"`**, follow with
 `python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> POST Library/Refresh`
 — Jellyfin will guess metadata via its own fuzzy match here, expected to sometimes be
@@ -684,7 +816,8 @@ wrong, corrected unconditionally next (Stage 9). **When `media_server.type` is
 `"none"`, this stage is just the file move** — no refresh call, nothing to correct
 afterward (Stage 9 doesn't run at all in this mode).
 
-**Bonus/extra content classified in Stage 7** gets handled per
+**Bonus/extra content classified in Stage 7, or bound to `"Extra"` by Stage 4 check
+4's `discdb_crosscheck.py` call** gets handled per
 `config.local.json`'s `bonus_content.handling` (full mechanics in
 `references/bonus-content.md`) — this part is unaffected by `media_server.type`, the
 extras-folder convention `file_bonus_content.py` uses isn't Jellyfin-specific:
@@ -718,12 +851,13 @@ you discover the 404 live.
 
 - **Movies, Series (the show-level item), and BoxSets**: look up the newly-scanned item
   by path, then call `RemoteSearch/Apply` with the id already confirmed in Stage 7 —
-  regardless of what Jellyfin's own scan guessed. Unconditional, not "only if wrong":
-  this keeps the logic simple and means Jellyfin's own guess never needs evaluating at
-  all.
+  or in Stage 3.5, for a title Stage 6/7 skipped as already confirmed — regardless of
+  what Jellyfin's own scan guessed. Unconditional, not "only if wrong": this keeps the
+  logic simple and means Jellyfin's own guess never needs evaluating at all.
 - **Episodes**: there's no id to force-apply. This is actually lower-risk than it
   sounds — episode identity comes from deterministic season/episode numbering against
-  an already-correctly-identified Series (Stage 7), not a fuzzy title search, so the
+  an already-correctly-identified Series (Stage 7, or Stage 3.5's confirmed mapping),
+  not a fuzzy title search, so the
   class of error this pipeline exists to prevent (a *wrong show entirely*) mostly
   doesn't apply here. Correctness instead depends on (a) the filename's season/episode
   numbers being right and (b) Stage 8's `POST Library/Refresh` having actually run

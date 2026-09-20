@@ -157,6 +157,49 @@ Caps how many optical drives are ripped from simultaneously. `null` means "use h
 many drives Stage 3's discovery scan finds." See `references/parallel-ripping.md` for
 why more drives isn't always better on memory-constrained machines.
 
+### `discdb.enabled` (boolean, optional, default `true`)
+Whether Stage 3.5 looks up each mounted disc against TheDiscDB's public API
+(`https://thediscdb.com/graphql/`) before ripping. Read-only, no account or API key
+involved, and best-effort (a miss or network failure just falls through to this
+skill's normal Stage 4→6→7 flow, silently). Set to `false` if you don't want this
+skill making any third-party network call at all, even a read-only one — every disc
+then behaves exactly as it did before this feature existed. See
+`references/discdb-integration.md` for the full mechanism and the cross-check
+discipline that gates when a hit is trusted enough to skip live identification for a
+title.
+
+### `library_duplicates.handling` (string, optional, default `"ask"`)
+One of `"skip"`, `"skip_unless_damaged"`, `"replace"`, or `"ask"` — what to do when a
+confirmed movie (`"MainMovie"` type — from either a Stage 3.5/4 TheDiscDB hit before
+ripping, or Stage 7's live identification after ripping) turns out to already exist
+in the Jellyfin library. Only checked when `media_server.type` is `"jellyfin"` —
+there's no library to check against under `"none"`, and this skill doesn't talk to
+Plex's API (see `media_server.type` above). Movies only for now; TV episodes aren't
+checked (matching an existing episode needs season/episode against an already-owned
+series, a different and harder problem than a single TMDB id — not yet implemented).
+Missing this field entirely is the same as `"ask"` — the safest default, same
+reasoning as `bonus_content.handling`.
+
+**The same four values mean a different action depending on which of the two call
+sites found the duplicate** — full detail in `references/library-duplicates.md`:
+- `"skip"` — before ripping: excluded from the rip, same exclusion-list mechanism as
+  a confirmed concat/duplicate title. After ripping (Stage 7-identified): the
+  freshly-ripped file is discarded from staging instead of placed.
+- `"skip_unless_damaged"` — same as `"skip"`, unless the existing library item's
+  filename carries the `[salvaged-incomplete]` tag
+  (`identification-technique.md`'s damaged-disc salvage procedure) — a lossy,
+  incomplete recovery rip isn't a real duplicate worth keeping over a fresh one, so
+  this behaves like `"replace"` instead.
+- `"replace"` — before ripping: rip normally. After ripping: place the new file and
+  delete the existing library file it's replacing first (the config choice itself is
+  the standing authorization, same precedent as `bonus_content.handling: "discard"`
+  already deleting permanently without re-confirming each time).
+- `"ask"` — present what was found (title, existing path, whether it's tagged
+  salvaged) and let the user decide, once per title, at whichever call site found it.
+See `references/library-duplicates.md` for exactly where each call site plugs into
+the pipeline, and why the obvious Jellyfin query (`AnyProviderIdEquals`) doesn't
+actually work and had to be verified against a real server instead of assumed.
+
 ## Validating
 
 `scripts/setup/validate_config.py <path-to-config.local.json>` checks the file exists,

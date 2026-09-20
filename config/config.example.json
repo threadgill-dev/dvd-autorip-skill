@@ -43,5 +43,13 @@
 
   "parallel": {
     "max_drives": null
+  },
+
+  "discdb": {
+    "enabled": true
+  },
+
+  "library_duplicates": {
+    "handling": "ask"
   }
 }

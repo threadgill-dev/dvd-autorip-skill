@@ -16,6 +16,12 @@ error instead of letting Claude discover the real 404 live -- see SKILL.md
 Stage 9 and gotchas.md's Jellyfin API gotchas ("POST /Items/RemoteSearch/
 Episode does not exist -- confirmed via a live 404").
 
+Also percent-encodes each query-parameter value automatically (e.g. a raw space in
+`Items?SearchTerm=50 First Dates`) -- confirmed live that `urlopen` raises
+`InvalidURL` outright on an unescaped space, which previously meant whoever built
+the `path` argument had to remember to encode it by hand every time. An
+already-percent-encoded value passes through unchanged, not double-encoded.
+
 Usage:
     python jellyfin_api.py <config.local.json path> GET System/Info
     python jellyfin_api.py <config path> POST Items/RemoteSearch/Movie --data '{"SearchInfo": {...}}'
@@ -50,6 +56,7 @@ import argparse
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 # Order matters: try the modern header first (confirmed working against
@@ -92,7 +99,29 @@ def load_config(path: str) -> dict:
     return {"base_url": base_url.rstrip("/"), "api_key": api_key}
 
 
+def _normalize_query(path: str) -> str:
+    """Percent-encode each query-parameter VALUE, leaving keys and the `?`/`&`/`=`
+    structure alone -- confirmed live that a raw space in a value (e.g.
+    `Items?SearchTerm=50 First Dates`) makes `urlopen` raise `InvalidURL` outright,
+    which previously meant whoever built the `path` argument had to remember to
+    percent-encode it by hand. `safe="%"` keeps an already-percent-encoded value
+    (`%20`) from being double-encoded into `%2520` -- a real, if imperfect,
+    trade-off: a literal `%` meant literally in a value is left alone too, same as
+    an already-encoded one, since there's no way to tell the two apart from the
+    string alone. No-op when `path` has no `?` at all.
+    """
+    route, sep, query = path.partition("?")
+    if not sep:
+        return path
+    pairs = []
+    for pair in query.split("&"):
+        key, eq, value = pair.partition("=")
+        pairs.append(f"{key}={urllib.parse.quote(value, safe='%')}" if eq else pair)
+    return f"{route}?{'&'.join(pairs)}"
+
+
 def do_request(base_url: str, api_key: str, method: str, path: str, data, timeout: int = 30) -> dict:
+    path = _normalize_query(path)
     url = base_url + (path if path.startswith("/") else "/" + path)
     body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
     for header_name, header_template in AUTH_HEADERS:

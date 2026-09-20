@@ -985,3 +985,59 @@ this is just the verified facts:
   skill routes through it** — it tries the new header first and falls back to the
   old one on every single call, not just at Stage 1 setup, so this fallback is
   already in effect if the same thing happens again mid-session.
+- **A raw space (or other unescaped character) in a query-parameter value makes
+  `urlopen` raise `InvalidURL` outright** — confirmed live, e.g. `GET
+  Items?SearchTerm=50 First Dates` failed hard rather than just mis-searching. A
+  real run worked around it by hand-encoding the space as `%20` before passing the
+  path to `jellyfin_api.py`. `jellyfin_api.py` now does this automatically (every
+  query value gets percent-encoded, `%`-safe so an already-encoded value isn't
+  double-encoded) — don't hand-encode a query value yourself before passing it to
+  the script, it isn't necessary anymore and a manually-encoded value still passes
+  through correctly either way.
+- **`GET /Items?IncludeItemTypes=Movie&Recursive=true` silently excludes any movie
+  that belongs to a Jellyfin collection/BoxSet** — confirmed live, and confirmed to
+  be the real cause of a duplicate-check miss, not a guess. TheDiscDB confirmed a
+  disc's identity (TMDB id 12345, Example Movie) before ripping it, and
+  `check_library_duplicate.py` still reported `"found": false` against a library
+  that already had the movie. A/B testing the raw query directly showed why: the
+  "Example Movie Collection" BoxSet itself came back in the result, but **none of its three
+  member movies** — `TotalRecordCount` confirmed the response wasn't just
+  truncated, those items were genuinely absent. Adding `&collapseBoxSetItems=false`
+  to the identical query fixed it completely (358 → 509 items on this server, all
+  three Example Movie movies present). This isn't a rare edge case — any movie grouped into
+  a franchise collection (Marvel, Disney, Studio Ghibli, etc. — this server alone
+  had 151 movies affected) is invisible to a flat type-filtered query by default.
+  Any script or query that needs to see every real movie, not just ungrouped ones,
+  needs `collapseBoxSetItems=false` explicitly — `check_library_duplicate.py` now
+  always passes it on its one list-fetch.
+
+## A hand-built file move silently overwrote an already-owned movie
+
+Stage 8 (place + scan) used to be pure prose — "move into `{library.movies_path}`
+per the naming templates" — with no dedicated script, so the actual move was a
+`Move-Item`/`mv` command reconstructed by hand at placement time, every disc. A
+real run ripped a movie already in the library (the disc missed TheDiscDB's
+pre-rip check, so Stage 3.5/4 check 5 never ran; Stage 7 identified it live, which
+should have routed it through Stage 8's own post-rip duplicate check instead) and
+the file that had been sitting in the library since 2020 was silently replaced —
+confirmed after the fact by comparing filesystem timestamps (the sequels in the
+same trilogy still showed their original 2020 dates; the movie in question now
+showed today's).
+
+The real weakness wasn't the duplicate-check *logic* — it was that nothing
+downstream of that logic actually enforced its decision. Even a correct
+`library_duplicates.handling` resolution ("discard the new rip, keep the
+existing file") depended entirely on the hand-built move command that placement
+turn happening to respect it; a plain move to a path that already has something
+at it doesn't ask first, on the shells this pipeline runs on. There was no
+independent safeguard at the filesystem level at all.
+
+Fixed by adding `scripts/place_file.py`: every placement, movies and TV episodes
+alike, now goes through it instead of a hand-built move, and it refuses a
+destination collision outright unless called with `--replace` — a flag only ever
+passed when the duplicate-check logic already decided to replace this specific
+title. This makes the safety property independent of whatever reasoning happened
+upstream: even if a future duplicate check has its own bug, or a completely
+different unanticipated collision occurs, `place_file.py` stops and reports it
+instead of silently overwriting. See `SKILL.md` Stage 8 and
+`references/library-duplicates.md`.

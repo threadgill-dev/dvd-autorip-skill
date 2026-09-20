@@ -37,6 +37,8 @@ PLACEHOLDER_MARKER = "REPLACE_ME"
 
 BONUS_CONTENT_HANDLING_VALUES = {"discard", "keep", "ask"}
 
+LIBRARY_DUPLICATES_HANDLING_VALUES = {"skip", "skip_unless_damaged", "replace", "ask"}
+
 
 def validate(config: dict) -> list[str]:
     problems = []
@@ -105,6 +107,20 @@ def validate(config: dict) -> list[str]:
             model_effort_ack = setup.get("model_effort_ack", False)
             if not isinstance(model_effort_ack, bool):
                 problems.append("'setup.model_effort_ack' must be true or false")
+
+    # library_duplicates is optional (missing == "ask", the safe default -- see
+    # config-schema.md), same reasoning as bonus_content above.
+    library_duplicates = config.get("library_duplicates")
+    if library_duplicates is not None:
+        if not isinstance(library_duplicates, dict):
+            problems.append(f"'library_duplicates' should be an object, got {type(library_duplicates).__name__}")
+        else:
+            handling = library_duplicates.get("handling", "ask")
+            if handling not in LIBRARY_DUPLICATES_HANDLING_VALUES:
+                problems.append(
+                    f"'library_duplicates.handling' is '{handling}', must be one of: "
+                    f"{', '.join(sorted(LIBRARY_DUPLICATES_HANDLING_VALUES))}"
+                )
 
     return problems
 
