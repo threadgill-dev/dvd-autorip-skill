@@ -89,7 +89,7 @@ is only that the wait itself can't become unbounded.
 
 ## A confident "duplicate encode" conclusion during identification permanently deleted a real, distinct episode
 
-Two titles on a a TV series season disc had matching segment counts,
+Two titles on a TV series season disc had matching segment counts,
 near-identical duration, and — independently — both had their dialogue attributed to
 the same episode by web search. That combination read as a duplicate encode of the
 same episode, so one title was discarded as redundant. It wasn't redundant: the
@@ -305,7 +305,7 @@ real failure later in the same log. The actual per-title save result lives in th
 validated case where MakeMKV failed but a plain file copy of the VOB chunks
 succeeded cleanly — that distinguishes corrupted-but-present payload data (something
 a decoder can conceal/interpolate around) from a byte-unreadable sector. **A real
-run hit the other case**: MakeMKV failed on `a movie`'s disc, and then the
+run hit the other case**: MakeMKV failed on a movie disc, and then the
 plain `robocopy` step *also* failed partway through — `VTS_01_0-4` (~3.8GB) copied
 clean, but `VTS_01_5-8` (~3.3GB, the movie's back half) hit reproducible CRC errors
 on the copy itself. This means the documented salvage technique (rebuild
@@ -997,16 +997,17 @@ this is just the verified facts:
 - **`GET /Items?IncludeItemTypes=Movie&Recursive=true` silently excludes any movie
   that belongs to a Jellyfin collection/BoxSet** — confirmed live, and confirmed to
   be the real cause of a duplicate-check miss, not a guess. TheDiscDB confirmed a
-  disc's identity (TMDB id 12345, Example Movie) before ripping it, and
-  `check_library_duplicate.py` still reported `"found": false` against a library
-  that already had the movie. A/B testing the raw query directly showed why: the
-  "Example Movie Collection" BoxSet itself came back in the result, but **none of its three
-  member movies** — `TotalRecordCount` confirmed the response wasn't just
-  truncated, those items were genuinely absent. Adding `&collapseBoxSetItems=false`
-  to the identical query fixed it completely (358 → 509 items on this server, all
-  three Example Movie movies present). This isn't a rare edge case — any movie grouped into
-  a franchise collection (Marvel, Disney, Studio Ghibli, etc. — this server alone
-  had 151 movies affected) is invisible to a flat type-filtered query by default.
+  disc's identity (a real TMDB id, for a well-known animated franchise movie)
+  before ripping it, and `check_library_duplicate.py` still reported
+  `"found": false` against a library that already had the movie. A/B testing the
+  raw query directly showed why: the franchise's own Collection BoxSet itself came
+  back in the result, but **none of its three member movies** — `TotalRecordCount`
+  confirmed the response wasn't just truncated, those items were genuinely absent.
+  Adding `&collapseBoxSetItems=false` to the identical query fixed it completely
+  (358 → 509 items on this server, all three franchise movies present). This isn't
+  a rare edge case — any movie grouped into a franchise collection (major studio
+  franchises and animation houses are common examples — this server alone had 151
+  movies affected) is invisible to a flat type-filtered query by default.
   Any script or query that needs to see every real movie, not just ungrouped ones,
   needs `collapseBoxSetItems=false` explicitly — `check_library_duplicate.py` now
   always passes it on its one list-fetch.

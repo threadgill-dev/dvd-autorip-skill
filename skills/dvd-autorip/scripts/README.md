@@ -17,8 +17,8 @@ for browsing the repo.
   be trusted) is already in the Jellyfin library, by fetching the movie list and
   matching client-side. Two server quirks confirmed live and worked around:
   `AnyProviderIdEquals` doesn't filter at all, and `IncludeItemTypes=Movie` on its
-  own silently excludes any movie belonging to a collection/BoxSet (real miss:
-  Example Movie, grouped into "Example Movie Collection", confirmed invisible without
+  own silently excludes any movie belonging to a collection/BoxSet (real miss: a
+  franchise movie grouped into its own Collection, confirmed invisible without
   `collapseBoxSetItems=false`). Imports `jellyfin_api.py` directly rather than
   reimplementing its HTTP logic. Two call sites: Stage 4 check 5 (before ripping, a
   discdb-confirmed movie) and Stage 8 (after ripping, a Stage 7-identified movie) —

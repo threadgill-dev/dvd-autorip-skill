@@ -33,12 +33,12 @@ franchise) that it should never be the thing that decides what a ripped disc act
 is. A couple of real examples from this skill's own use:
 
 - A season-3 disc's episodes were consistently identified one number off from what
-  Jellyfin's own metadata provider expected, because that provider's data has
-  "Episode22" at E22 instead of its usual chronological slot — invisible unless you
-  check the actual episode content against what got assumed.
-- "a well-known literary detective" alone has roughly ten separate TMDB entries for different
-  actors/eras; picking the top search hit by title match alone reliably picks the
-  wrong one.
+  Jellyfin's own metadata provider expected, because that provider's data has one
+  specific episode slotted out of its usual chronological order — invisible unless
+  you check the actual episode content against what got assumed.
+- A classic character with many actor-specific film adaptations can have a dozen
+  separate TMDB entries for different eras; picking the top search hit by title
+  match alone reliably picks the wrong one.
 
 This skill treats the disc's actual audio/video/subtitle content as the source of
 truth, and only writes to a media server's metadata after that's independently

@@ -5,7 +5,7 @@ same title index/id.
 
 **Why not same-index.** The original design cross-checked "does the MakeMKV title
 at index N have the same duration as TheDiscDB's title N" -- confirmed live against
-a real disc (Example Movie, 2003 Fullscreen DVD) that this is wrong: MakeMKV found only 18
+a real disc (a popular animated movie's fullscreen DVD) that this is wrong: MakeMKV found only 18
 real titles on that disc, while TheDiscDB's mapping had 33 entries (short bonus
 clips TheDiscDB catalogued that this machine's MakeMKV scan didn't even list --
 see `references/discdb-integration.md` for why that gap exists). Once the two
@@ -41,7 +41,7 @@ comes back unbound -- a normal, expected result, not an error.
 Outputs JSON to stdout:
   {"ok": true,
    "bound": [{"makemkv_title_id": 0, "discdb_index": 0, "type": "MainMovie",
-              "title": "Example Movie", "season": null, "episode": null, "episodes": [],
+              "title": "Movie Title", "season": null, "episode": null, "episodes": [],
               "duration_diff_seconds": 0.0}, ...],
    "unbound_makemkv_ids": [...],    # no confirmed discdb mapping -- normal Stage 6/7
    "unbound_discdb_indices": [...]} # discdb entries with no matching real title on

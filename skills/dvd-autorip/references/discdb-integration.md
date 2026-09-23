@@ -42,8 +42,8 @@ timeout, disc unreadable) is a normal, silent, common outcome, not something to
 report to the user or slow down for.** Proceed straight to Stage 4 exactly as this
 pipeline already worked before this feature existed. TheDiscDB's coverage skews
 Blu-ray-heavy and is nowhere near exhaustive for DVDs specifically — confirmed
-empirically: a real disc (Sample Show Season 5) produced a clean, correctly-computed hash
-with no match, and a follow-up query confirmed the show isn't in the catalog at all.
+empirically: a real disc (a TV series season set) produced a clean, correctly-computed
+hash with no match, and a follow-up query confirmed the show isn't in the catalog at all.
 Don't treat a miss as evidence of anything wrong with the disc, the hash computation,
 or the query.
 
@@ -129,8 +129,8 @@ drift can shuffle title indices, so we never trust the network's title_index bli
 — we re-bind by physical signature").
 
 **Same-index comparison was the original design here and it fails badly in
-practice — confirmed live, not theoretical.** Against a real disc (Example Movie, 2003
-Fullscreen DVD, a genuine `"matched": true` hit), this machine's MakeMKV scan found
+practice — confirmed live, not theoretical.** Against a real disc (a popular
+animated movie's fullscreen DVD, a genuine `"matched": true` hit), this machine's MakeMKV scan found
 only **18 real titles**, while TheDiscDB's mapping had **33 entries** — every entry
 TheDiscDB catalogued that runs under roughly two minutes simply never appears in
 `-r info disc:N`'s output on this machine at all (MakeMKV's own default minimum

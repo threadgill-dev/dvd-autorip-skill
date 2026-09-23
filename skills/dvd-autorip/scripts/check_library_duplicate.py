@@ -17,20 +17,20 @@ does: fetch the movie list with `Fields=ProviderIds,Path` and match client-side.
 
 **A second, more serious Jellyfin quirk, confirmed live -- `IncludeItemTypes=Movie`
 silently excludes any movie that belongs to a Jellyfin BoxSet/collection.** A real
-run confirmed a disc's identity via TheDiscDB (a real TMDB id, 12345 for Example Movie) and
-still got `"found": false` against a library that, it turned out, already had that
-exact movie. Root-caused by A/B testing the live query directly, not guessed: with
-`collapseBoxSetItems` left at its default, `GET
-/Items?IncludeItemTypes=Movie&Recursive=true` returned 358 items and the "Example Movie
-Collection" BoxSet itself, but **not one of its three member movies** (Example Movie,
-Example Movie 2, Example Movie 3) -- `TotalRecordCount` confirmed the response wasn't just
-truncated, those items were genuinely absent from the result set. Adding
-`&collapseBoxSetItems=false` to the exact same query returned 509 items, all three
-Example Movie movies included. This isn't a rare edge case: any franchise film a user has
-grouped into a collection (this server alone had 151 additional movies hidden this
-way) was systematically invisible to the duplicate check, entirely independent of
-whether its TMDB id was correct. Fixed by always passing
-`collapseBoxSetItems=false` on the one list-fetch this script does.
+run confirmed a disc's identity via TheDiscDB (a real TMDB id, for a well-known
+animated franchise movie) and still got `"found": false` against a library that, it
+turned out, already had that exact movie. Root-caused by A/B testing the live query
+directly, not guessed: with `collapseBoxSetItems` left at its default, `GET
+/Items?IncludeItemTypes=Movie&Recursive=true` returned 358 items and the franchise's
+own Collection BoxSet itself, but **not one of its three member movies** --
+`TotalRecordCount` confirmed the response wasn't just truncated, those items were
+genuinely absent from the result set. Adding `&collapseBoxSetItems=false` to the
+exact same query returned 509 items, all three franchise movies included. This
+isn't a rare edge case: any franchise film a user has grouped into a collection
+(this server alone had 151 additional movies hidden this way) was systematically
+invisible to the duplicate check, entirely independent of whether its TMDB id was
+correct. Fixed by always passing `collapseBoxSetItems=false` on the one list-fetch
+this script does.
 
 **A second, independent safety net: title+year fallback.** Even with the boxset
 fix, an exact TMDB-id match still assumes the existing library entry's own
@@ -51,7 +51,7 @@ Jellyfin call in this skill, just a different query shape.
 
 Usage:
     python check_library_duplicate.py <config path> --tmdb-id 12345
-    python check_library_duplicate.py <config path> --tmdb-id 12345 --title Example Movie --year 2001
+    python check_library_duplicate.py <config path> --tmdb-id 12345 --title "Movie Title" --year 2001
 
 `--title`/`--year` are optional -- omit either to skip the fallback pass entirely
 (exact-id-only, the original behavior). Both call sites in SKILL.md always have a

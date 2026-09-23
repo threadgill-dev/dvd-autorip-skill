@@ -33,19 +33,20 @@ id).
 **A second Jellyfin quirk, more serious than the first — `IncludeItemTypes=Movie`
 silently excludes any movie belonging to a collection/BoxSet.** Confirmed live, and
 confirmed to be the actual cause of a real miss: a disc's identity was confirmed
-via TheDiscDB (TMDB id 12345, Example Movie) and the check still returned `"found": false`
-against a library that already had it. Root-caused by A/B testing the query
-directly: `GET /Items?IncludeItemTypes=Movie&Recursive=true` returned the "Example Movie
-Collection" BoxSet itself but none of its three member movies —
-`TotalRecordCount` confirmed the response genuinely didn't include them, not just
-a truncated page. Adding `&collapseBoxSetItems=false` to the same query fixed it
-completely (358 → 509 items, all three Example Movie movies present). Any user with
-franchise films grouped into collections — not a rare setup — would have had every
-one of those movies invisible to this check. `check_library_duplicate.py` now
-always passes `collapseBoxSetItems=false` on its one list-fetch.
+via TheDiscDB (a real TMDB id, for a well-known animated franchise movie) and the
+check still returned `"found": false` against a library that already had it.
+Root-caused by A/B testing the query directly: `GET
+/Items?IncludeItemTypes=Movie&Recursive=true` returned the franchise's own
+Collection BoxSet itself but none of its three member movies — `TotalRecordCount`
+confirmed the response genuinely didn't include them, not just a truncated page.
+Adding `&collapseBoxSetItems=false` to the same query fixed it completely (358 →
+509 items, all three franchise movies present). Any user with franchise films
+grouped into collections — not a rare setup — would have had every one of those
+movies invisible to this check. `check_library_duplicate.py` now always passes
+`collapseBoxSetItems=false` on its one list-fetch.
 
 ```
-python check_library_duplicate.py <config path> --tmdb-id 12345 --title Example Movie --year 2001
+python check_library_duplicate.py <config path> --tmdb-id 12345 --title "Movie Title" --year 2001
 ```
 Returns `{"ok": true, "found": false}` or `{"ok": true, "found": true,
 "match_type": "tmdb_id"|"title_year", "item": {"id": ..., "name": ..., "path":

@@ -178,7 +178,7 @@ path.
 Two titles independently matching the same search result is weaker evidence of
 duplication than it looks — generic dialogue can plausibly match more than one real
 episode, especially when both titles were searched independently rather than diffed
-directly against each other. A real run on a a TV series season disc
+directly against each other. A real run on a TV series season disc
 concluded two titles were duplicate encodes of the same episode (matching segment
 counts, near-identical duration, and two independent web searches both landing on
 that same episode) and permanently deleted one. The deleted title was actually a
@@ -279,9 +279,10 @@ cascaded into every subsequent placement on that disc being wrong too.
     is. Always prefer the populated/corroborated candidate over position or year
     match alone — and check the full overview text, not just title/year: a title
     sharing words with a long-running unrelated franchise (the "many actor-specific
-    versions of a classic character" problem — a well-known literary detective is the canonical
-    example, with roughly ten separate TMDB entries for different actors/eras) can bury
-    the real match in noise that only the overview text reliably filters.
+    versions of a classic character" problem — a well-known literary detective is a
+    canonical example, with roughly ten separate TMDB entries for different
+    actors/eras) can bury the real match in noise that only the overview text
+    reliably filters.
 - **Cross-reference new evidence against what's already in the library.** Beyond
   narrowing down identity, this has surfaced real data-integrity problems in
   already-placed files that nothing else was looking for. Worth a deliberate check, not
