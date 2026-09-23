@@ -30,15 +30,20 @@ which fails moving across a Windows drive letter boundary the way staging ->
 library commonly does).
 
 Outputs JSON to stdout:
-  moved (no collision):     {"ok": true, "action": "moved"}
+  moved (no collision):     {"ok": true, "action": "moved", "destination": "...",
+                              "filename": "..."}
   replaced (--replace used,
-    destination existed):   {"ok": true, "action": "replaced"}
+    destination existed):   {"ok": true, "action": "replaced", "destination": "...",
+                              "filename": "..."}
   collision, no --replace:  {"ok": false, "error_type": "collision",
                               "detail": "..."}
   source missing / other
     filesystem error:       {"ok": false, "error_type": "filesystem",
                               "detail": "..."}
-Exit code 0 iff "ok" is true.
+Exit code 0 iff "ok" is true. **`filename` on success is the exact value Stage 12's
+`run_report.py add-disc` call should use** -- it's this call's own destination
+basename, not something to reconstruct from the naming template a second time or
+recall from earlier in the conversation.
 """
 from __future__ import annotations
 
@@ -73,7 +78,12 @@ def place(source: str, destination: str, replace: bool) -> dict:
     except OSError as e:
         return {"ok": False, "error_type": "filesystem", "detail": str(e)}
 
-    return {"ok": True, "action": "replaced" if destination_exists else "moved"}
+    return {
+        "ok": True,
+        "action": "replaced" if destination_exists else "moved",
+        "destination": destination,
+        "filename": os.path.basename(destination),
+    }
 
 
 def main() -> None:

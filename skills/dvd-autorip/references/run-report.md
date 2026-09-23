@@ -28,8 +28,14 @@ very end.
   }
   ```
   Every key besides `volume_label` is optional — omit whatever doesn't apply to this
-  disc rather than sending an empty list. Pull `placed`/`bonus` from what Stage 8/9
-  actually did, `excluded_pre_rip` from Stage 4 step 1's exclusion list, and
+  disc rather than sending an empty list. **Every `placed`/`bonus` entry's
+  `filename` is that title's own `place_file.py` call result's `"filename"` field,
+  verbatim** — not reconstructed from `library.naming`'s template a second time,
+  not recalled from memory. `add-disc` now rejects an entry with no `filename` at
+  all (confirmed live: a real run rendered `"(unnamed)"` three times per disc
+  because this value was never carried forward from Stage 8, and by the time it was
+  noticed, that disc's staging folder — the only other place it existed — was
+  already gone). Pull `excluded_pre_rip` from Stage 4 step 1's exclusion list, and
   `needs_review` from how Stage 11 resolved each held title (`"resolved"`,
   `"deferred"`, or `"discarded"` — the three outcomes Stage 11 already defines).
 - **`add-issue`** — anywhere, any time from Stage 3 onward, whenever something in

@@ -807,7 +807,13 @@ the destination that the duplicate check didn't account for — **stop and surfa
 it to the user rather than retrying with `--replace`**; forcing it through would
 recreate exactly the silent-overwrite failure this script exists to prevent (a
 real run did this once, by hand, before `place_file.py` existed — see
-`references/gotchas.md`).
+`references/gotchas.md`). **Keep this call's own `"filename"` field around for
+Stage 12** (per disc, across every title placed on it) — that's the exact value
+`add-disc` needs, not something to reconstruct later from the naming template or
+from memory. A real run's closing report showed blank `"(unnamed)"` placements
+because that value was never carried forward this way; `run_report.py` now rejects
+a call missing it (see Stage 12 below), but the fix is having the real value in
+hand at all, not just getting a clearer error when it's missing.
 **When
 `media_server.type` is `"jellyfin"`**, follow with
 `python ${CLAUDE_SKILL_DIR}/scripts/jellyfin_api.py <config path> POST Library/Refresh`
@@ -945,9 +951,27 @@ user).
 before cleanup** — `python ${CLAUDE_SKILL_DIR}/scripts/run_report.py add-disc
 --staging-path <staging.path> --data '<json>'` (see `references/run-report.md` for
 the exact shape: what got placed, any bonus content and how it was handled, any
-pre-rip exclusions, any needs-review items and how Stage 11 resolved them). Do this
-before deleting the disc's staging files below, not after — the filenames/details
-being recorded live in exactly the files this step is about to delete.
+pre-rip exclusions, any needs-review items and how Stage 11 resolved them).
+
+**Every `placed`/`bonus` entry's `filename` comes from that title's own
+`place_file.py` call result — its `"filename"` field, verbatim — never
+reconstructed from the naming template a second time and never recalled from
+memory.** Each title on this disc had its own Stage 8 `place_file.py` call; by the
+time you reach this point every one of those calls' JSON results (specifically each
+one's `"filename"`) needs to still be in hand, because this is the only other place
+they exist before this disc's own evidence gets deleted below. **The script now
+rejects a `placed`/`bonus` entry with no `filename` at all** rather than silently
+rendering `"(unnamed)"` — but don't rely on hitting that error and fixing it in the
+moment; have the real values ready before making this call, the same discipline as
+"identify then place," not "place then hope you can reconstruct what happened."
+Confirmed live: a real run got exactly the blank-report failure this now guards
+against, and by the time it was noticed the staging files below had already been
+deleted, so the real filenames were gone for good — this is not a hypothetical
+edge case.
+
+Do this before deleting the disc's staging files below, not after — the
+filenames/details being recorded live in exactly the files this step is about to
+delete.
 
 **Clean up this disc's staging working files, per disc, once its own verification
 above is done — this is not optional, and it has no other trigger point anywhere else

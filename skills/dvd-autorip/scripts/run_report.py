@@ -89,6 +89,22 @@ def cmd_start(staging_path: str) -> dict:
     return {"ok": True}
 
 
+def _validate_disc(disc: dict) -> str | None:
+    """Returns an error string, or None if well-formed. Confirmed live that a call
+    silently accepting a missing filename just renders "(unnamed)" at Stage 13,
+    long after that disc's staging files (the only place the real filename still
+    existed) were already deleted at cleanup -- by the time anyone notices, it's
+    unrecoverable. Rejecting it here instead surfaces the mistake immediately, while
+    the real value is still one `ls` of the staging folder away, not three stages
+    later in a rendered report nobody re-checks against source data.
+    """
+    for key in ("placed", "bonus"):
+        for i, item in enumerate(disc.get(key) or []):
+            if not isinstance(item, dict) or not item.get("filename"):
+                return f"disc.{key}[{i}] is missing a non-empty 'filename' -- pull the real value from this disc's staging folder before calling add-disc, don't send a placeholder"
+    return None
+
+
 def cmd_add_disc(staging_path: str, data_json: str) -> dict:
     try:
         disc = json.loads(data_json)
@@ -96,6 +112,10 @@ def cmd_add_disc(staging_path: str, data_json: str) -> dict:
         return {"ok": False, "error": f"--data is not valid JSON: {e}"}
     if not isinstance(disc, dict) or "volume_label" not in disc:
         return {"ok": False, "error": "--data must be a JSON object with at least a 'volume_label' field"}
+
+    problem = _validate_disc(disc)
+    if problem:
+        return {"ok": False, "error": problem}
 
     report = _load(staging_path)
     if report is None:
